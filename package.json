@@ -1,0 +1,23 @@
+{
+  "name": "solidity-inheritable-dynamic-asset-stake",
+  "version": "1.0.0",
+  "description": "Solidity Inheritable Dynamic Asset Stake",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/barisatalay/solidity-inheritable-dynamic-asset-stake.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/barisatalay/solidity-inheritable-dynamic-asset-stake/issues"
+  },
+  "homepage": "https://github.com/barisatalay/solidity-inheritable-dynamic-asset-stake#readme",
+  "devDependencies": {
+    "hardhat": "^2.8.0"
+  }
+}
