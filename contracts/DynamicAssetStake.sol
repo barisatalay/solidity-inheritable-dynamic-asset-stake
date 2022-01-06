@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.3;
 
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/utils/Context.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
@@ -15,20 +16,30 @@ import "@openzeppelin/contracts/utils/math/SafeMath.sol";
     event YieldWithdraw(address indexed to, uint256 amount);
     
     address private storageAddress = address(this);
- 
+    
+
+    struct RewardInfo{
+        address tokenAddress;
+        uint256 rate;
+        uint id;
+        bool isSupportMint;
+    }
+
     struct AssetInfo {
         uint256 createTime;
         uint256 expiryTime;
         address tokenAddress;
-        MintableERC20[] rewards;
         bytes32 name;
+        uint rewardCount;
         uint id;
         bool active;
     }
 
     uint private stakeIDCounter;
-    //Index => (token address => token name) 
+    //Index => AssetInfo 
     mapping(uint => AssetInfo) public assetInfo;
+    //AssetInfoIndex => (RewardIndex => RewardInfo) 
+    mapping(uint => mapping(uint=>RewardInfo)) public rewardInfo;
     // userAddress => stakingBalance
     mapping(uint => mapping(address => uint256)) private stakingBalance;
     // userAddress => timeStamp
@@ -40,7 +51,7 @@ import "@openzeppelin/contracts/utils/math/SafeMath.sol";
     
     using SafeMath for uint;
 
-    constructor{
+    constructor(){
         stakeIDCounter = 0;
     }
 
@@ -48,16 +59,10 @@ import "@openzeppelin/contracts/utils/math/SafeMath.sol";
         return stakingBalance[stakeID][account];
     }
 
-    function getStakeContract(uint stakeID) internal view returns(ERC20){
+    function getStakeContract(uint stakeID) internal view returns(IERC20){
         require(assetInfo[stakeID].name!="", "Stake: Selected contract is not valid");
         require(assetInfo[stakeID].active,"Stake: Selected contract is not active");
-        return ERC20(assetInfo[stakeID].tokenAddress);
-    }
-
-    function getStakeContractInfo(uint stakeID) internal view returns(AssetInfo memory){
-        require(assetInfo[stakeID].name!="", "Stake: Selected contract is not valid");
-        require(assetInfo[stakeID].active,"Stake: Selected contract is not active");
-        return assetInfo[stakeID];
+        return IERC20(assetInfo[stakeID].tokenAddress);
     }
 
     function calculateYieldTime(uint stakeID, address user) public view returns(uint256){
@@ -108,8 +113,9 @@ import "@openzeppelin/contracts/utils/math/SafeMath.sol";
     }
 
     function withdrawYield(uint stakeID) public {
-        AssetInfo memory selectedToken = getStakeContractInfo(stakeID);
-
+        require(assetInfo[stakeID].name!="", "Stake: Selected contract is not valid");
+        require(assetInfo[stakeID].active,"Stake: Selected contract is not active");
+        
         uint256 toTransfer = calculateYieldTotal(stakeID, _msgSender());
         require(
             toTransfer > 0 ||
@@ -123,11 +129,15 @@ import "@openzeppelin/contracts/utils/math/SafeMath.sol";
         }
 
         startTime[stakeID][_msgSender()] = block.timestamp;
-
-        uint length = selectedToken.rewards.length;
+        
+        uint length = assetInfo[stakeID].rewardCount;
         for (uint i=0; i<length; i++) {
-            selectedToken.rewards[i].mint(_msgSender(), toTransfer);
-        } 
+            if (rewardInfo[stakeID][i].isSupportMint){
+                //assetInfo[stakeID].rewards[i].mint(_msgSender(), toTransfer);
+            } else{
+                IERC20(rewardInfo[stakeID][i].tokenAddress).transferFrom(storageAddress, _msgSender(), toTransfer);
+            }
+        }
         emit YieldWithdraw(_msgSender(), toTransfer);
     } 
  
@@ -155,13 +165,19 @@ import "@openzeppelin/contracts/utils/math/SafeMath.sol";
         return stakeIDCounter;
     }
     
-    function addNewStakeAsset(address _assetAddress, bytes32 _assetName, MintableERC20[] memory _rewards) onlyOwner public {
+    function addNewStakeAsset(address _assetAddress, bytes32 _assetName, RewardInfo[] memory _rewards) onlyOwner public {
         require(_assetAddress != address(0), "Stake: New Staking address not valid");
         require(_assetName != "", "Stake: New Staking name not valid");
-        assetInfo[stakeIDCounter] = AssetInfo(block.timestamp, 0, _assetAddress, _rewards, _assetName, stakeIDCounter, true); 
+        uint length = _rewards.length;
+        for (uint i=0; i<length; i++) {
+            _rewards[i].id = i;
+            rewardInfo[stakeIDCounter][i] = _rewards[i];
+        }
+        assetInfo[stakeIDCounter] = AssetInfo(block.timestamp, 0, _assetAddress, _assetName, length, stakeIDCounter, true);
+        
         stakeIDCounter += 1;
     }
-
+    
     function disableStakeAsset(uint stakeID) public onlyOwner{
         require(assetInfo[stakeID].name!="", "Stake: Contract is not valid");
         require(assetInfo[stakeID].active,"Stake: Contract is already disabled");
