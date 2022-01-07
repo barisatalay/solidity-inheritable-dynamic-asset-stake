@@ -55,96 +55,121 @@ import "@openzeppelin/contracts/utils/math/SafeMath.sol";
         stakeIDCounter = 0;
     }
 
-    function balanceOf(uint stakeID, address account) public view returns (uint256) {
-        return stakingBalance[stakeID][account];
+    /// @notice             Returns staked token balance by pool id
+    /// @param  _stakeID    Id of the stake pool
+    /// @param  _account    Address of the staker
+    /// @return             Count of staked balance 
+    function balanceOf(uint _stakeID, address _account) public view returns (uint256) {
+        return stakingBalance[_stakeID][_account];
     }
 
-    function getStakeContract(uint stakeID) internal view returns(IERC20){
-        require(assetInfo[stakeID].name!="", "Stake: Selected contract is not valid");
-        require(assetInfo[stakeID].active,"Stake: Selected contract is not active");
-        return IERC20(assetInfo[stakeID].tokenAddress);
+    /// @notice             Returns Stake Asset Contract casted IERC20 interface by pool id
+    /// @param  _stakeID    Id of the stake pool
+    function getStakeContract(uint _stakeID) internal view returns(IERC20){
+        require(assetInfo[_stakeID].name!="", "Stake: Selected contract is not valid");
+        require(assetInfo[_stakeID].active,"Stake: Selected contract is not active");
+        return IERC20(assetInfo[_stakeID].tokenAddress);
     }
 
-    function calculateYieldTime(uint stakeID, address user) public view returns(uint256){
-        return block.timestamp.sub(startTime[stakeID][user], "Stake: Yield Calculation error");
+    /// @notice             Calculates yield time by pool id and staker address 
+    /// @param  _stakeID    Id of the stake pool
+    /// @param  _user       Address of the staker
+    function calculateYieldTime(uint _stakeID, address _user) public view returns(uint256){
+        return block.timestamp.sub(startTime[_stakeID][_user], "Stake: Yield Calculation error");
     }
     
-    function calculateYieldTotal(uint stakeID, address user) public view returns(uint256) {
+    /// @notice             Calculates total yield by pool id and staker address
+    /// @param  _stakeID    Id of the stake pool
+    /// @param  _user       Address of the staker
+    function calculateYieldTotal(uint _stakeID, address _user) public view returns(uint256) {
         //TODO Bu hesaplama üzerinde çalışılacak.
         uint256 rate = 86400;
-        uint256 timeRate = calculateYieldTime(stakeID, user).mul(10**18).div(rate, "Stake: Yield Calculation error");
-        return stakingBalance[stakeID][user].mul(timeRate).div(10**18, "Stake: Yield Calculation error");
+        uint256 timeRate = calculateYieldTime(_stakeID, _user).mul(10**18).div(rate, "Stake: Yield Calculation error");
+        return stakingBalance[_stakeID][_user].mul(timeRate).div(10**18, "Stake: Yield Calculation error");
     } 
 
-    function stake(uint stakeID, uint256 _amount) public{
-        IERC20 selectedToken = getStakeContract(stakeID);
+    /// @notice             Deposits assets by pool id
+    /// @param  _stakeID    Id of the stake pool
+    /// @param  _amount     Amount of deposit asset
+    function stake(uint _stakeID, uint256 _amount) public{
+        IERC20 selectedToken = getStakeContract(_stakeID);
         require(_amount > 0 && selectedToken.balanceOf(_msgSender()) >= _amount, "Stake: You cannot stake zero tokens");
         require(storageAddress != address(0), "Stake: Storage address did not set");
 
-        if(stakingInfo[stakeID][_msgSender()] == true)
-            rewardBalance[stakeID][_msgSender()]  += calculateYieldTotal(stakeID, _msgSender());
+        if(stakingInfo[_stakeID][_msgSender()] == true)
+            rewardBalance[_stakeID][_msgSender()]  += calculateYieldTotal(_stakeID, _msgSender());
         else 
-            stakingInfo[stakeID][_msgSender()] = true;
+            stakingInfo[_stakeID][_msgSender()] = true;
         
-        startTime[stakeID][_msgSender()] = block.timestamp;
-        stakingBalance[stakeID][_msgSender()] += _amount;
+        startTime[_stakeID][_msgSender()] = block.timestamp;
+        stakingBalance[_stakeID][_msgSender()] += _amount;
 
         //TODO Transfer edilen adresdeki tokenleri harcayabiliyor muyum bu test edilecek.
         selectedToken.transferFrom(_msgSender(), storageAddress, _amount);
         emit Stake(_msgSender(), _amount);
     } 
 
-    function unstake(uint stakeID, uint256 _amount) public {
-        IERC20 selectedToken = getStakeContract(stakeID);
+    /// @notice             Withdraw assets by pool id
+    /// @param  _stakeID    Id of the stake pool
+    /// @param  _amount     Amount of withdraw asset
+    function unstake(uint _stakeID, uint256 _amount) public {
+        IERC20 selectedToken = getStakeContract(_stakeID);
         require(
-            stakingInfo[stakeID][_msgSender()] == true && 
-            stakingBalance[stakeID][_msgSender()] >= _amount, 
+            stakingInfo[_stakeID][_msgSender()] == true && 
+            stakingBalance[_stakeID][_msgSender()] >= _amount, 
             "Stake: does not have staking balance"
         );
         
-        startTime[stakeID][_msgSender()] = block.timestamp;
-        rewardBalance[stakeID][_msgSender()] += calculateYieldTotal(stakeID, _msgSender());
-        stakingBalance[stakeID][_msgSender()] -= _amount;
+        startTime[_stakeID][_msgSender()] = block.timestamp;
+        rewardBalance[_stakeID][_msgSender()] += calculateYieldTotal(_stakeID, _msgSender());
+        stakingBalance[_stakeID][_msgSender()] -= _amount;
         selectedToken.transfer(_msgSender(), _amount);
-        if(stakingBalance[stakeID][_msgSender()] == 0){
-            stakingInfo[stakeID][_msgSender()] = false;
+        if(stakingBalance[_stakeID][_msgSender()] == 0){
+            stakingInfo[_stakeID][_msgSender()] = false;
         }        
         emit Unstake(_msgSender(), _amount);
     }
 
-    function withdrawYield(uint stakeID) public {
-        require(assetInfo[stakeID].name!="", "Stake: Selected contract is not valid");
-        require(assetInfo[stakeID].active,"Stake: Selected contract is not active");
+    /// @notice             Withdrawals calculated yield by pool id
+    /// @param  _stakeID    Id of the stake pool 
+    function withdrawYield(uint _stakeID) public {
+        require(assetInfo[_stakeID].name!="", "Stake: Selected contract is not valid");
+        require(assetInfo[_stakeID].active,"Stake: Selected contract is not active");
         
-        uint256 toTransfer = calculateYieldTotal(stakeID, _msgSender());
+        uint256 toTransfer = calculateYieldTotal(_stakeID, _msgSender());
         require(
             toTransfer > 0 ||
-            rewardBalance[stakeID][_msgSender()] > 0,
+            rewardBalance[_stakeID][_msgSender()] > 0,
             "Stake: Nothing to withdraw"
             );
             
-        if(rewardBalance[stakeID][_msgSender()] != 0){
-            toTransfer += rewardBalance[stakeID][_msgSender()];
-            rewardBalance[stakeID][_msgSender()] = 0;
+        if(rewardBalance[_stakeID][_msgSender()] != 0){
+            toTransfer += rewardBalance[_stakeID][_msgSender()];
+            rewardBalance[_stakeID][_msgSender()] = 0;
         }
 
-        startTime[stakeID][_msgSender()] = block.timestamp;
+        startTime[_stakeID][_msgSender()] = block.timestamp;
         
-        uint length = assetInfo[stakeID].rewardCount;
+        uint length = assetInfo[_stakeID].rewardCount;
         for (uint i=0; i<length; i++) {
-            if (rewardInfo[stakeID][i].isSupportMint){
-                //assetInfo[stakeID].rewards[i].mint(_msgSender(), toTransfer);
+            if (rewardInfo[_stakeID][i].isSupportMint){
+                //assetInfo[_stakeID].rewards[i].mint(_msgSender(), toTransfer);
             } else{
-                IERC20(rewardInfo[stakeID][i].tokenAddress).transferFrom(storageAddress, _msgSender(), toTransfer);
+                IERC20(rewardInfo[_stakeID][i].tokenAddress).transferFrom(storageAddress, _msgSender(), toTransfer);
             }
         }
         emit YieldWithdraw(_msgSender(), toTransfer);
     } 
  
-    function isStaking(uint stakeID, address _user) view public returns(bool){
-        return stakingInfo[stakeID][_user];
+    /// @notice             Checks the address has a stake
+    /// @param  _stakeID    Id of the stake pool
+    /// @param _user        Address of the staker
+    /// todo             Value of stake status
+    function isStaking(uint _stakeID, address _user) view public returns(bool){
+        return stakingInfo[_stakeID][_user];
     }
 
+    /// @notice Returns stake asset list of active
     function getActiveStakeAssetList() public view returns(AssetInfo[] memory){
         uint length = stakeIDCounter;
         AssetInfo[] memory result = new AssetInfo[](length);
@@ -156,15 +181,24 @@ import "@openzeppelin/contracts/utils/math/SafeMath.sol";
         return result;
     }
 
+    /// @notice         Returns stake pool
+    /// @return count   Count of stake pool
     function getStakeAssetByID(uint _stakeID) public view returns(AssetInfo memory){
         require(assetInfo[_stakeID].name!="", "Stake: Stake Asset is not valid");
         return assetInfo[_stakeID];
     }
 
+    //  TODO            will be removed if not required
+    /// @notice         Returns stake pool
+    /// @return count   Count of stake pool
     function stakeItemCount() public view returns(uint){
         return stakeIDCounter;
     }
     
+    /// @notice                 Adds new stake asset to the pool
+    /// @param  _assetAddress   Address of the token asset
+    /// @param  _assetName      Name of the token asset
+    /// @param  _rewards        Rewards for the stakers
     function addNewStakeAsset(address _assetAddress, bytes32 _assetName, RewardInfo[] memory _rewards) onlyOwner public {
         require(_assetAddress != address(0), "Stake: New Staking address not valid");
         require(_assetName != "", "Stake: New Staking name not valid");
@@ -178,15 +212,19 @@ import "@openzeppelin/contracts/utils/math/SafeMath.sol";
         stakeIDCounter += 1;
     }
     
-    function disableStakeAsset(uint stakeID) public onlyOwner{
-        require(assetInfo[stakeID].name!="", "Stake: Contract is not valid");
-        require(assetInfo[stakeID].active,"Stake: Contract is already disabled");
-        assetInfo[stakeID].active = false;
+    /// @notice Disables stake asset for user 
+    /// @param  _stakeID  Id of the stake pool    
+    function disableStakeAsset(uint _stakeID) public onlyOwner{
+        require(assetInfo[_stakeID].name!="", "Stake: Contract is not valid");
+        require(assetInfo[_stakeID].active,"Stake: Contract is already disabled");
+        assetInfo[_stakeID].active = false;
     }
 
-    function enableStakeAsset(uint stakeID) public onlyOwner{
-        require(assetInfo[stakeID].name!="", "Stake: Contract is not valid");
-        require(assetInfo[stakeID].active==false,"Stake: Contract is already enabled");
-        assetInfo[stakeID].active = true;
+    /// @notice Enables stake asset for user 
+    /// @param  _stakeID  Id of the stake pool
+    function enableStakeAsset(uint _stakeID) public onlyOwner{
+        require(assetInfo[_stakeID].name!="", "Stake: Contract is not valid");
+        require(assetInfo[_stakeID].active==false,"Stake: Contract is already enabled");
+        assetInfo[_stakeID].active = true;
     }
  }
