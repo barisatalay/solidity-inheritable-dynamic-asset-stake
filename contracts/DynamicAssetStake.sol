@@ -1,92 +1,145 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.3;
 
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/utils/Context.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 /*
  * @title BARIS ATALAY
  * @dev Set & change owner
+ * 
+ * @IMPORTANT Reward tokens to be distributed to the stakers must be deposited into the contract.
+ * 
  */
- contract FeedTheMonsterStake is Context, Ownable{
+ contract DynamicAssetStake is Context, Ownable{
     event Stake(address indexed from, uint256 amount);
     event Unstake(address indexed from, uint256 amount);
-    event YieldWithdraw(address indexed to, uint256 amount);
+    event YieldWithdraw(address indexed to);
     
     address private storageAddress = address(this);
     
-
-    struct RewardInfo{
-        address tokenAddress;
-        uint256 rate;
-        uint id;
-        bool isSupportMint;
+    struct RewardDef{
+        address tokenAddress;               // Contract Address of Reward token
+        uint256 rewardPerSecond;            // TODO
+        uint256 accTokenPerShare;           // TODO
+        bytes32 name;                       // Byte equivalent of the name of the pool token
+        uint id;                            // Id of Reward
     }
 
-    struct AssetInfo {
-        uint256 createTime;
-        uint256 expiryTime;
-        address tokenAddress;
-        bytes32 name;
-        uint rewardCount;
-        uint id;
-        bool active;
+    struct RewardInfo{
+        uint256 rewardBalance;
+        uint rewardID;
+    }
+
+    struct PoolDef{
+        address tokenAddress;               // Contract Address of Pool token
+        uint rewardCount;                   // Amount of the reward to be won from the pool
+        uint id;                            // Id of pool
+        bool active;                        // Pool active status
+    }
+
+    struct PoolDefExt{
+        uint256 expiryTime;                 // The pool remains active until the set time
+        uint256 createTime;                 // Pool creation time
+        bytes32 name;                       // Byte equivalent of the name of the pool token
+    }
+
+    struct PoolVariable{                    // Only owner can edit
+        uint256 balance;                    // Pool Contract Token Balance
+        uint256 balanceFee;                 // Withdraw Fee for contract Owner;
+        uint256 lastRewardTimeStamp;        // TODO
+        uint8 feeRate;                      // Fee Rate for UnStake
+    }
+    
+    // Info of each user
+    struct UserDef{ 
+        address id;                         // Wallet Address of staker
+        uint256 stakingBalance;             // Amount of current staking balance
+        uint256 startTime;                  // Staking start time
     }
 
     uint private stakeIDCounter;
-    //Index => AssetInfo 
-    mapping(uint => AssetInfo) public assetInfo;
-    //AssetInfoIndex => (RewardIndex => RewardInfo) 
-    mapping(uint => mapping(uint=>RewardInfo)) public rewardInfo;
-    // userAddress => stakingBalance
-    mapping(uint => mapping(address => uint256)) private stakingBalance;
-    // userAddress => timeStamp
-    mapping(uint => mapping(address => uint256)) private startTime;
-    // userAddress => rewardBalance
-    mapping(uint => mapping(address => uint256)) private rewardBalance;
-    // userAddress => isStaking boolean
-    mapping(uint => mapping(address => bool)) private stakingInfo;
+    //Pool ID => PoolDef 
+    mapping(uint => PoolDef) public poolList;
+    //Pool ID => Underused Pool information 
+    mapping(uint => PoolDefExt) public poolListExtras;
+    //Pool ID => Pool Variable info
+    mapping(uint => PoolVariable) public poolVariable;
+    //Pool ID => (RewardIndex => RewardDef) 
+    mapping(uint => mapping(uint => RewardDef)) public poolRewardList;
+    //Pool ID => (RewardIndex => Amount of distributed reward to staker) 
+    mapping(uint => mapping(uint => uint)) public poolPaidOut;
+    //Pool ID => Amount of Stake from User
+    mapping(uint => uint) public poolTotalStake;
+
+
+    //Pool ID => (User ID => User Info)
+    mapping(uint => mapping(address => UserDef)) poolUserInfo;
+    //Pool ID => (User ID => (Reward Id => Reward Info))
+    mapping (uint => mapping(address => mapping(uint => RewardInfo))) poolRewardInfo;
+
     
     using SafeMath for uint;
+    using SafeERC20 for IERC20;
 
     constructor(){
         stakeIDCounter = 0;
     }
 
-    /// @notice             Returns staked token balance by pool id
-    /// @param  _stakeID    Id of the stake pool
-    /// @param  _account    Address of the staker
-    /// @return             Count of staked balance 
-    function balanceOf(uint _stakeID, address _account) public view returns (uint256) {
-        return stakingBalance[_stakeID][_account];
+    function RewardUpdate(uint _stakeID) internal virtual {
+        uint256 lastTimeStamp = block.timestamp;
+        PoolVariable storage selectedPoolVariable = poolVariable[_stakeID];
+
+        if (lastTimeStamp <= selectedPoolVariable.lastRewardTimeStamp) {
+            lastTimeStamp = selectedPoolVariable.lastRewardTimeStamp;
+        }
+        if (poolTotalStake[_stakeID] == 0) {
+            selectedPoolVariable.lastRewardTimeStamp = block.timestamp;
+            return;
+        }
+        uint256 timeDiff = lastTimeStamp.sub(selectedPoolVariable.lastRewardTimeStamp);
+
+        //..:: Calculating the reward shares of the pool ::..
+        uint rewardCount = poolList[_stakeID].rewardCount;
+        for (uint i=0; i<rewardCount; i++) {
+            RewardDef storage rewardDef = poolRewardList[_stakeID][i];
+            uint256 currentReward = timeDiff.mul(rewardDef.rewardPerSecond);
+            rewardDef.accTokenPerShare = rewardDef.accTokenPerShare.add(currentReward.mul(1e36).div(poolTotalStake[_stakeID]));
+        }
+        //..:: Calculating the reward shares of the pool ::..
+        
+        selectedPoolVariable.lastRewardTimeStamp = block.timestamp;
     }
 
-    /// @notice             Returns Stake Asset Contract casted IERC20 interface by pool id
-    /// @param  _stakeID    Id of the stake pool
-    function getStakeContract(uint _stakeID) internal view returns(IERC20){
-        require(assetInfo[_stakeID].name!="", "Stake: Selected contract is not valid");
-        require(assetInfo[_stakeID].active,"Stake: Selected contract is not active");
-        return IERC20(assetInfo[_stakeID].tokenAddress);
-    }
+    function showPendingReward() external virtual returns(uint){}
 
-    /// @notice             Calculates yield time by pool id and staker address 
+    /// @notice             Withdraw assets by pool id
     /// @param  _stakeID    Id of the stake pool
-    /// @param  _user       Address of the staker
-    function calculateYieldTime(uint _stakeID, address _user) public view returns(uint256){
-        return block.timestamp.sub(startTime[_stakeID][_user], "Stake: Yield Calculation error");
+    /// @param  _amount     Amount of withdraw asset
+    function unStake(uint _stakeID, uint256 _amount) public {
+        require(_msgSender() != address(0), "Stake: Staker address not specified!");
+        IERC20 selectedToken = getStakeContract(_stakeID);
+        UserDef storage user =  poolUserInfo[_stakeID][_msgSender()];
+
+        require(user.stakingBalance > 0, "Stake: does not have staking balance");
+
+        if (_amount > user.stakingBalance)
+            _amount = user.stakingBalance;
+
+        user.startTime = block.timestamp;
+        
+        //TODO Reward Calculation
+        
+
+        user.stakingBalance = user.stakingBalance.sub(_amount);
+
+        if (_amount > 0)
+            selectedToken.safeTransferFrom(storageAddress, _msgSender(), _amount);
+        emit Unstake(_msgSender(), _amount);
     }
-    
-    /// @notice             Calculates total yield by pool id and staker address
-    /// @param  _stakeID    Id of the stake pool
-    /// @param  _user       Address of the staker
-    function calculateYieldTotal(uint _stakeID, address _user) public view returns(uint256) {
-        //TODO Bu hesaplama üzerinde çalışılacak.
-        uint256 rate = 86400;
-        uint256 timeRate = calculateYieldTime(_stakeID, _user).mul(10**18).div(rate, "Stake: Yield Calculation error");
-        return stakingBalance[_stakeID][_user].mul(timeRate).div(10**18, "Stake: Yield Calculation error");
-    } 
 
     /// @notice             Deposits assets by pool id
     /// @param  _stakeID    Id of the stake pool
@@ -96,135 +149,138 @@ import "@openzeppelin/contracts/utils/math/SafeMath.sol";
         require(_amount > 0 && selectedToken.balanceOf(_msgSender()) >= _amount, "Stake: You cannot stake zero tokens");
         require(storageAddress != address(0), "Stake: Storage address did not set");
 
-        if(stakingInfo[_stakeID][_msgSender()] == true)
-            rewardBalance[_stakeID][_msgSender()]  += calculateYieldTotal(_stakeID, _msgSender());
-        else 
-            stakingInfo[_stakeID][_msgSender()] = true;
-        
-        startTime[_stakeID][_msgSender()] = block.timestamp;
-        stakingBalance[_stakeID][_msgSender()] += _amount;
+        UserDef storage user =  poolUserInfo[_stakeID][_msgSender()];
 
-        //TODO Transfer edilen adresdeki tokenleri harcayabiliyor muyum bu test edilecek.
-        selectedToken.transferFrom(_msgSender(), storageAddress, _amount);
+        if (_amount > selectedToken.balanceOf(_msgSender()))
+            _amount = selectedToken.balanceOf(_msgSender());
+
+        // Amount transfer to storageAddress
+        selectedToken.safeTransferFrom(_msgSender(), storageAddress, _amount);
+        
+        RewardUpdate(_stakeID);
+        // ..:: Pending reward will be calculate and send to staker, before new stake amount ::..
+        if (user.stakingBalance > 0){
+            uint rewardCount = poolList[_stakeID].rewardCount;
+            for (uint i=0; i<rewardCount; i++) {
+                uint256 userRewardedBalance = poolRewardInfo[_stakeID][_msgSender()][i].rewardBalance;
+
+                uint pendingAmount = user.stakingBalance.mul(accRocoPerShare).div(1e36).sub(userRewardedInfo.userRewardedBalance);    
+                
+
+                PoolVariable storage poolVariableInfo = poolVariable[_stakeID];
+                poolVariableInfo.balance = poolVariableInfo.sub(pendingAmount);
+
+                getRewardTokenAddress(_stakeID, i).safeTransfer(_msgSender(), pendingAmount);
+                poolPaidOut[_stakeID][i] = poolPaidOut[_stakeID][i].add(pendingAmount); 
+            }
+        }
+        // ..:: Pending reward will be calculate and send to staker, before new stake amount ::..
+        
+
+        // Total staked value updated with "_amount" by Pool ID
+        poolTotalStake[_stakeID] = poolTotalStake[_stakeID].add(_amount); 
+        // User's staked value updated with "_amount" by Pool ID
+        user.stakingBalance = user.stakingBalance.add(_amount);
+        
+        // ..:: Calculating the rewards users deserve ::..
+        uint rewardCount = poolList[_stakeID].rewardCount;
+        for (uint i=0; i<rewardCount; i++) {
+            poolRewardInfo[_stakeID][_msgSender()][i].rewardBalance = user.stakingBalance.mul(poolRewardList[_stakeID][i].accTokenPerShare).div(1e36);
+        }
+        // ..:: Calculating the rewards users deserve ::..
+        
         emit Stake(_msgSender(), _amount);
     } 
 
-    /// @notice             Withdraw assets by pool id
+    function
+
+    /// @notice             Returns staked token balance by pool id
     /// @param  _stakeID    Id of the stake pool
-    /// @param  _amount     Amount of withdraw asset
-    function unstake(uint _stakeID, uint256 _amount) public {
-        IERC20 selectedToken = getStakeContract(_stakeID);
-        require(
-            stakingInfo[_stakeID][_msgSender()] == true && 
-            stakingBalance[_stakeID][_msgSender()] >= _amount, 
-            "Stake: does not have staking balance"
-        );
-        
-        startTime[_stakeID][_msgSender()] = block.timestamp;
-        rewardBalance[_stakeID][_msgSender()] += calculateYieldTotal(_stakeID, _msgSender());
-        stakingBalance[_stakeID][_msgSender()] -= _amount;
-        selectedToken.transfer(_msgSender(), _amount);
-        if(stakingBalance[_stakeID][_msgSender()] == 0){
-            stakingInfo[_stakeID][_msgSender()] = false;
-        }        
-        emit Unstake(_msgSender(), _amount);
+    /// @param  _account    Address of the staker
+    /// @return             Count of staked balance 
+    function balanceOf(uint _stakeID, address _account) public view returns (uint256) {
+        return poolUserInfo[_stakeID][_account].stakingBalance;
     }
 
-    /// @notice             Withdrawals calculated yield by pool id
-    /// @param  _stakeID    Id of the stake pool 
-    function withdrawYield(uint _stakeID) public {
-        require(assetInfo[_stakeID].name!="", "Stake: Selected contract is not valid");
-        require(assetInfo[_stakeID].active,"Stake: Selected contract is not active");
-        
-        uint256 toTransfer = calculateYieldTotal(_stakeID, _msgSender());
-        require(
-            toTransfer > 0 ||
-            rewardBalance[_stakeID][_msgSender()] > 0,
-            "Stake: Nothing to withdraw"
-            );
-            
-        if(rewardBalance[_stakeID][_msgSender()] != 0){
-            toTransfer += rewardBalance[_stakeID][_msgSender()];
-            rewardBalance[_stakeID][_msgSender()] = 0;
-        }
+    /// @notice             Returns Stake Poll Contract casted IERC20 interface by pool id
+    /// @param  _stakeID    Id of the stake pool
+    function getStakeContract(uint _stakeID) internal view returns(IERC20){
+        require(poolListExtras[_stakeID].name!="", "Stake: Selected contract is not valid");
+        require(poolList[_stakeID].active,"Stake: Selected contract is not active");
+        return IERC20(poolList[_stakeID].tokenAddress);
+    }
 
-        startTime[_stakeID][_msgSender()] = block.timestamp;
-        
-        uint length = assetInfo[_stakeID].rewardCount;
-        for (uint i=0; i<length; i++) {
-            if (rewardInfo[_stakeID][i].isSupportMint){
-                //assetInfo[_stakeID].rewards[i].mint(_msgSender(), toTransfer);
-            } else{
-                IERC20(rewardInfo[_stakeID][i].tokenAddress).transferFrom(storageAddress, _msgSender(), toTransfer);
-            }
-        }
-        emit YieldWithdraw(_msgSender(), toTransfer);
-    } 
- 
+
+    /// @notice             Returns rewarded token address
+    /// @param  _stakeID    Id of the stake pool
+    /// @param  _rewardID   Id of the reward
+    /// @return             Address of token contract 
+    function getRewardTokenAddress(uint _stakeID, uint _rewardID) internal view returns(address){
+        return poolRewardList[_stakeID][i].tokenAddress;
+    }
+
     /// @notice             Checks the address has a stake
     /// @param  _stakeID    Id of the stake pool
     /// @param _user        Address of the staker
-    /// todo             Value of stake status
+    /// @return             Value of stake status
     function isStaking(uint _stakeID, address _user) view public returns(bool){
-        return stakingInfo[_stakeID][_user];
+        return poolUserInfo[_stakeID][_user].stakingBalance > 0;
     }
 
     /// @notice Returns stake asset list of active
-    function getActiveStakeAssetList() public view returns(AssetInfo[] memory){
+    function getActiveStakeAssetList() public view returns(PoolDef[] memory){
         uint length = stakeIDCounter;
-        AssetInfo[] memory result = new AssetInfo[](length);
+
+        PoolDef[] memory result = new PoolDef[](length);
         for (uint i=0; i<length; i++) {
-            if (assetInfo[i].active==true) {
-                result[i] = assetInfo[i];
-            }
+            if (poolList[i].active==true) 
+                result[i] = poolList[i];
         }
         return result;
     }
 
-    /// @notice         Returns stake pool
-    /// @return count   Count of stake pool
-    function getStakeAssetByID(uint _stakeID) public view returns(AssetInfo memory){
-        require(assetInfo[_stakeID].name!="", "Stake: Stake Asset is not valid");
-        return assetInfo[_stakeID];
+    /// @notice             Returns stake pool
+    /// @param  _stakeID    Id of the stake pool
+    /// @return             TODO...
+    function getStakePoolByID(uint _stakeID) public view returns(PoolDef memory){
+        require(poolListExtras[_stakeID].name!="", "Stake: Stake Asset is not valid");
+        return poolList[_stakeID];
     }
 
-    //  TODO            will be removed if not required
-    /// @notice         Returns stake pool
-    /// @return count   Count of stake pool
-    function stakeItemCount() public view returns(uint){
-        return stakeIDCounter;
-    }
-    
-    /// @notice                 Adds new stake asset to the pool
-    /// @param  _assetAddress   Address of the token asset
-    /// @param  _assetName      Name of the token asset
+    /// @notice                 Adds new stake def to the pool
+    /// @param  _poolAddress    Address of the token pool
+    /// @param  _poolName       Name of the token pool
     /// @param  _rewards        Rewards for the stakers
-    function addNewStakeAsset(address _assetAddress, bytes32 _assetName, RewardInfo[] memory _rewards) onlyOwner public {
-        require(_assetAddress != address(0), "Stake: New Staking address not valid");
-        require(_assetName != "", "Stake: New Staking name not valid");
+    function addNewStakePool(address _poolAddress, bytes32 _poolName, RewardDef[] memory _rewards) onlyOwner public returns(uint){
+        require(_poolAddress != address(0), "Stake: New Staking Pool address not valid");
+        require(_poolName != "", "Stake: New Staking Pool name not valid");
         uint length = _rewards.length;
+
         for (uint i=0; i<length; i++) {
             _rewards[i].id = i;
-            rewardInfo[stakeIDCounter][i] = _rewards[i];
+            poolRewardList[stakeIDCounter][i] = _rewards[i];
         }
-        assetInfo[stakeIDCounter] = AssetInfo(block.timestamp, 0, _assetAddress, _assetName, length, stakeIDCounter, true);
-        
+
+        poolList[stakeIDCounter] = PoolDef(_poolAddress, length, stakeIDCounter, false);
+        poolListExtras[stakeIDCounter] = PoolDefExt(block.timestamp, 0, _poolName);
         stakeIDCounter += 1;
-    }
-    
-    /// @notice Disables stake asset for user 
-    /// @param  _stakeID  Id of the stake pool    
-    function disableStakeAsset(uint _stakeID) public onlyOwner{
-        require(assetInfo[_stakeID].name!="", "Stake: Contract is not valid");
-        require(assetInfo[_stakeID].active,"Stake: Contract is already disabled");
-        assetInfo[_stakeID].active = false;
+
+        return stakeIDCounter.sub(1);
     }
 
-    /// @notice Enables stake asset for user 
+    /// @notice Disables stake pool for user 
+    /// @param  _stakeID  Id of the stake pool    
+    function disableStakePool(uint _stakeID) public onlyOwner{
+        require(poolListExtras[_stakeID].name!="", "Stake: Contract is not valid");
+        require(poolList[_stakeID].active,"Stake: Contract is already disabled");
+        poolList[_stakeID].active = false;
+    }
+
+    /// @notice Enables stake pool for user 
     /// @param  _stakeID  Id of the stake pool
-    function enableStakeAsset(uint _stakeID) public onlyOwner{
-        require(assetInfo[_stakeID].name!="", "Stake: Contract is not valid");
-        require(assetInfo[_stakeID].active==false,"Stake: Contract is already enabled");
-        assetInfo[_stakeID].active = true;
+    function enableStakePool(uint _stakeID) public onlyOwner{
+        require(poolListExtras[_stakeID].name!="", "Stake: Contract is not valid");
+        require(poolList[_stakeID].active==false,"Stake: Contract is already enabled");
+        poolList[_stakeID].active = true;
     }
  }
