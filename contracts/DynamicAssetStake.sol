@@ -20,6 +20,12 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
     event YieldWithdraw(address indexed to);
     
     address private storageAddress = address(this);
+
+    struct PendingRewardInfo{
+        bytes32 name;                       // Byte equivalent of the name of the pool token
+        uint256 amount;                     // TODO...
+        uint id;                            // Id of Reward
+    }
     
     struct RewardDef{
         address tokenAddress;               // Contract Address of Reward token
@@ -46,7 +52,7 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
     struct PoolVariable{                    // Only owner can edit
         uint256 balance;                    // Pool Contract Token Balance
         uint256 balanceFee;                 // Withdraw Fee for contract Owner;
-        uint256 lastRewardTimeStamp;        // TODO
+        uint256 lastRewardTimeStamp;        // TODO...
         uint8 feeRate;                      // Fee Rate for UnStake
     }
     
@@ -116,7 +122,35 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
         selectedPoolVariable.lastRewardTimeStamp = block.timestamp;
     }
 
-    function showPendingReward() external virtual returns(uint) { }
+    /// @notice             TODO...
+    /// @param  _stakeID    Id of the stake pool
+    /// @return             TODO...
+    function showPendingReward(uint _stakeID) external virtual returns(PendingRewardInfo[] memory) { 
+        UserDef memory user =  poolUserInfo[_stakeID][_msgSender()];
+        uint256 lastTimeStamp = block.timestamp;
+        uint rewardCount = poolList[_stakeID].rewardCount;
+        PendingRewardInfo[] memory result = new PendingRewardInfo[](rewardCount);
+
+        for (uint RewardIndex=0; RewardIndex<rewardCount; RewardIndex++) {
+            uint _accTokenPerShare = poolRewardList[_stakeID][RewardIndex].accTokenPerShare;
+
+            if (lastTimeStamp > poolVariable[_stakeID].lastRewardTimeStamp && poolTotalStake[_stakeID] != 0) {
+                uint256 timeDiff = lastTimeStamp.sub(poolVariable[_stakeID].lastRewardTimeStamp);
+                uint256 currentReward = timeDiff.mul(poolRewardList[_stakeID][RewardIndex].rewardPerSecond);
+                _accTokenPerShare = _accTokenPerShare.add(currentReward.mul(1e36).div(poolTotalStake[_stakeID]));
+            }
+            result[RewardIndex] = PendingRewardInfo({
+                id:     RewardIndex,
+                name:   poolRewardList[_stakeID][RewardIndex].name,
+                amount: user.stakingBalance
+                            .mul(_accTokenPerShare)
+                            .div(1e36)
+                            .sub(poolUserRewardInfo[_stakeID][_msgSender()][RewardIndex].rewardBalance) 
+            });
+        }
+
+        return result;
+    }
 
     /// @notice             Withdraw assets by pool id
     /// @param  _stakeID    Id of the stake pool
