@@ -16,7 +16,7 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
  */
  contract DynamicAssetStake is Context, Ownable{
     event Stake(address indexed from, uint256 amount);
-    event Unstake(address indexed from, uint256 amount);
+    event UnStake(address indexed from, uint256 amount);
     event YieldWithdraw(address indexed to);
     
     address private storageAddress = address(this);
@@ -26,12 +26,8 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
         uint256 rewardPerSecond;            // TODO
         uint256 accTokenPerShare;           // TODO
         bytes32 name;                       // Byte equivalent of the name of the pool token
+        uint8 feeRate;                      // Fee Rate for Reward Harvest
         uint id;                            // Id of Reward
-    }
-
-    struct RewardInfo{
-        uint256 rewardBalance;
-        uint rewardID;
     }
 
     struct PoolDef{
@@ -61,6 +57,11 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
         uint256 startTime;                  // Staking start time
     }
 
+    struct UserRewardInfo{
+        uint256 rewardBalance;
+        uint rewardID;
+    }
+
     uint private stakeIDCounter;
     //Pool ID => PoolDef 
     mapping(uint => PoolDef) public poolList;
@@ -79,7 +80,7 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
     //Pool ID => (User ID => User Info)
     mapping(uint => mapping(address => UserDef)) poolUserInfo;
     //Pool ID => (User ID => (Reward Id => Reward Info))
-    mapping (uint => mapping(address => mapping(uint => RewardInfo))) poolRewardInfo;
+    mapping (uint => mapping(address => mapping(uint => UserRewardInfo))) poolUserRewardInfo;
 
     
     using SafeMath for uint;
@@ -89,7 +90,9 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
         stakeIDCounter = 0;
     }
 
-    function RewardUpdate(uint _stakeID) internal virtual {
+    /// @notice             TODO...
+    /// @param  _stakeID    Id of the stake pool
+    function UpdatePoolRewardShare(uint _stakeID) internal virtual {
         uint256 lastTimeStamp = block.timestamp;
         PoolVariable storage selectedPoolVariable = poolVariable[_stakeID];
 
@@ -105,40 +108,74 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
         //..:: Calculating the reward shares of the pool ::..
         uint rewardCount = poolList[_stakeID].rewardCount;
         for (uint i=0; i<rewardCount; i++) {
-            RewardDef storage rewardDef = poolRewardList[_stakeID][i];
-            uint256 currentReward = timeDiff.mul(rewardDef.rewardPerSecond);
-            rewardDef.accTokenPerShare = rewardDef.accTokenPerShare.add(currentReward.mul(1e36).div(poolTotalStake[_stakeID]));
+            uint256 currentReward = timeDiff.mul(poolRewardList[_stakeID][i].rewardPerSecond);
+            poolRewardList[_stakeID][i].accTokenPerShare = poolRewardList[_stakeID][i].accTokenPerShare.add(currentReward.mul(1e36).div(poolTotalStake[_stakeID]));
         }
         //..:: Calculating the reward shares of the pool ::..
         
         selectedPoolVariable.lastRewardTimeStamp = block.timestamp;
     }
 
-    function showPendingReward() external virtual returns(uint){}
+    function showPendingReward() external virtual returns(uint) { }
 
     /// @notice             Withdraw assets by pool id
     /// @param  _stakeID    Id of the stake pool
     /// @param  _amount     Amount of withdraw asset
     function unStake(uint _stakeID, uint256 _amount) public {
         require(_msgSender() != address(0), "Stake: Staker address not specified!");
-        IERC20 selectedToken = getStakeContract(_stakeID);
+        //IERC20 selectedToken = getStakeContract(_stakeID);
         UserDef storage user =  poolUserInfo[_stakeID][_msgSender()];
 
         require(user.stakingBalance > 0, "Stake: does not have staking balance");
+        // Amount leak control
+        if (_amount > user.stakingBalance) _amount = user.stakingBalance;
 
-        if (_amount > user.stakingBalance)
-            _amount = user.stakingBalance;
-
-        user.startTime = block.timestamp;
-        
-        //TODO Reward Calculation
-        
-
-        user.stakingBalance = user.stakingBalance.sub(_amount);
-
+        // "_amount" removed to Total staked value by Pool ID
         if (_amount > 0)
-            selectedToken.safeTransferFrom(storageAddress, _msgSender(), _amount);
-        emit Unstake(_msgSender(), _amount);
+            poolTotalStake[_stakeID] = poolTotalStake[_stakeID].sub(_amount); 
+        
+        UpdatePoolRewardShare(_stakeID);
+
+        // ..:: Pending reward will be calculate and add to transferAmount, before transfer unStake amount ::..
+        uint rewardCount = poolList[_stakeID].rewardCount;
+        for (uint RewardIndex=0; RewardIndex<rewardCount; RewardIndex++) {
+            uint256 userRewardedBalance = poolUserRewardInfo[_stakeID][_msgSender()][RewardIndex].rewardBalance;
+            uint pendingAmount = user.stakingBalance
+                                            .mul(poolRewardList[_stakeID][RewardIndex].accTokenPerShare)
+                                            .div(1e36)
+                                            .sub(userRewardedBalance);
+
+            if (pendingAmount > 0) {
+                uint256 pendingRewardFee = pendingAmount
+                                                .mul(poolRewardList[_stakeID][RewardIndex].feeRate)
+                                                .div(100);
+                // Commission fees received are recorded for reporting
+                poolVariable[_stakeID].balanceFee = poolVariable[_stakeID].balanceFee.add(pendingRewardFee);
+
+                // Calculated reward after commission deducted
+                uint256 finalRewardAmount = pendingAmount.sub(pendingRewardFee);
+                //Reward distribution
+                getRewardTokenContract(_stakeID, RewardIndex).safeTransfer(_msgSender(), finalRewardAmount);
+                poolPaidOut[_stakeID][RewardIndex] = poolPaidOut[_stakeID][RewardIndex].add(pendingAmount);    
+            }
+        }
+        // ..:: Pending reward will be calculate and add to transferAmount, before transfer unStake amount ::..
+                        
+        uint256 unStakeFee = _amount
+                                .mul(poolVariable[_stakeID].feeRate)
+                                .div(100);
+
+        // Calculated unStake amount after commission deducted
+        uint256 finalUnStakeAmount = _amount.sub(unStakeFee);
+                
+        // ..:: Updated last user info ::..
+        user.startTime = block.timestamp;
+        user.stakingBalance = user.stakingBalance.sub(finalUnStakeAmount);
+        // ..:: Updated last user info ::..
+
+        if (finalUnStakeAmount > 0)
+            getStakeContract(_stakeID).safeTransferFrom(storageAddress, _msgSender(), finalUnStakeAmount);
+        emit UnStake(_msgSender(), _amount);
     }
 
     /// @notice             Deposits assets by pool id
@@ -151,48 +188,47 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
         UserDef storage user =  poolUserInfo[_stakeID][_msgSender()];
 
+        // Amount leak control
         if (_amount > selectedToken.balanceOf(_msgSender()))
             _amount = selectedToken.balanceOf(_msgSender());
 
         // Amount transfer to storageAddress
         selectedToken.safeTransferFrom(_msgSender(), storageAddress, _amount);
         
-        RewardUpdate(_stakeID);
+        UpdatePoolRewardShare(_stakeID);
+        uint rewardCount = poolList[_stakeID].rewardCount;
         // ..:: Pending reward will be calculate and send to staker, before new stake amount ::..
         if (user.stakingBalance > 0){
-            uint rewardCount = poolList[_stakeID].rewardCount;
-            for (uint i=0; i<rewardCount; i++) {
-                uint256 userRewardedBalance = poolRewardInfo[_stakeID][_msgSender()][i].rewardBalance;
-
-                uint pendingAmount = user.stakingBalance.mul(accRocoPerShare).div(1e36).sub(userRewardedInfo.userRewardedBalance);    
+            for (uint RewardIndex=0; RewardIndex<rewardCount; RewardIndex++) {
+                uint256 userRewardedBalance = poolUserRewardInfo[_stakeID][_msgSender()][RewardIndex].rewardBalance;
                 
+                uint pendingAmount = user.stakingBalance
+                                                .mul(poolRewardList[_stakeID][RewardIndex].accTokenPerShare)
+                                                .div(1e36)
+                                                .sub(userRewardedBalance);    
+                
+                // Updating balance pending to be distributed from contract to users
+                poolVariable[_stakeID].balance = poolVariable[_stakeID].balance.sub(pendingAmount);
 
-                PoolVariable storage poolVariableInfo = poolVariable[_stakeID];
-                poolVariableInfo.balance = poolVariableInfo.sub(pendingAmount);
-
-                getRewardTokenAddress(_stakeID, i).safeTransfer(_msgSender(), pendingAmount);
-                poolPaidOut[_stakeID][i] = poolPaidOut[_stakeID][i].add(pendingAmount); 
+                getRewardTokenContract(_stakeID, RewardIndex).safeTransfer(_msgSender(), pendingAmount);
+                poolPaidOut[_stakeID][RewardIndex] = poolPaidOut[_stakeID][RewardIndex].add(pendingAmount); 
             }
         }
         // ..:: Pending reward will be calculate and send to staker, before new stake amount ::..
         
-
-        // Total staked value updated with "_amount" by Pool ID
+        // "_amount" added to Total staked value by Pool ID
         poolTotalStake[_stakeID] = poolTotalStake[_stakeID].add(_amount); 
-        // User's staked value updated with "_amount" by Pool ID
+        // "_amount" added to USER Total staked value by Pool ID
         user.stakingBalance = user.stakingBalance.add(_amount);
         
         // ..:: Calculating the rewards users deserve ::..
-        uint rewardCount = poolList[_stakeID].rewardCount;
         for (uint i=0; i<rewardCount; i++) {
-            poolRewardInfo[_stakeID][_msgSender()][i].rewardBalance = user.stakingBalance.mul(poolRewardList[_stakeID][i].accTokenPerShare).div(1e36);
+            poolUserRewardInfo[_stakeID][_msgSender()][i].rewardBalance = user.stakingBalance.mul(poolRewardList[_stakeID][i].accTokenPerShare).div(1e36);
         }
         // ..:: Calculating the rewards users deserve ::..
         
         emit Stake(_msgSender(), _amount);
     } 
-
-    function
 
     /// @notice             Returns staked token balance by pool id
     /// @param  _stakeID    Id of the stake pool
@@ -210,13 +246,12 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
         return IERC20(poolList[_stakeID].tokenAddress);
     }
 
-
     /// @notice             Returns rewarded token address
     /// @param  _stakeID    Id of the stake pool
     /// @param  _rewardID   Id of the reward
-    /// @return             Address of token contract 
-    function getRewardTokenAddress(uint _stakeID, uint _rewardID) internal view returns(address){
-        return poolRewardList[_stakeID][i].tokenAddress;
+    /// @return             token contract 
+    function getRewardTokenContract(uint _stakeID, uint _rewardID) internal view returns(IERC20){
+        return IERC20(poolRewardList[_stakeID][_rewardID].tokenAddress);
     }
 
     /// @notice             Checks the address has a stake
