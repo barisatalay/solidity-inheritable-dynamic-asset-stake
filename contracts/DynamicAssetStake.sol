@@ -180,9 +180,11 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
                                             .sub(userRewardedBalance);
 
             if (pendingAmount > 0) {
-                uint256 pendingRewardFee = pendingAmount
-                                                .mul(poolRewardList[_stakeID][RewardIndex].feeRate)
-                                                .div(100);
+                uint256 pendingRewardFee; 
+                if (poolRewardList[_stakeID][RewardIndex].feeRate > 0)
+                    pendingRewardFee = pendingAmount
+                                            .mul(poolRewardList[_stakeID][RewardIndex].feeRate)
+                                            .div(100);
                 // Commission fees received are recorded for reporting
                 poolVariable[_stakeID].balanceFee = poolVariable[_stakeID].balanceFee.add(pendingRewardFee);
 
@@ -194,10 +196,11 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
             }
         }
         // ..:: Pending reward will be calculate and add to transferAmount, before transfer unStake amount ::..
-                        
-        uint256 unStakeFee = _amount
-                                .mul(poolVariable[_stakeID].feeRate)
-                                .div(100);
+        uint256 unStakeFee;                
+        if (poolVariable[_stakeID].feeRate  > 0)
+            unStakeFee = _amount
+                            .mul(poolVariable[_stakeID].feeRate)
+                            .div(100);
 
         // Calculated unStake amount after commission deducted
         uint256 finalUnStakeAmount = _amount.sub(unStakeFee);
