@@ -305,21 +305,27 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
     }
 
     /// @notice Returns stake asset list of active
-    function getActiveStakeAssetList() public view returns(PoolDef[] memory, PoolDefExt[] memory){
+    function getPoolList() public view returns(PoolDef[] memory, PoolDefExt[] memory){
         uint length = stakeIDCounter;
 
         PoolDef[] memory result = new PoolDef[](length);
         PoolDefExt[] memory resultExt = new PoolDefExt[](length);
-        
-        for (uint i=0; i<length; i++) {
-            if (poolList[i].active==true){
-                PoolDef storage poolItem        = poolList[i];
-                PoolDefExt storage poolExtItem  = poolListExtras[i]; 
-                result[i]                       = poolItem;
-                resultExt[i]                    = poolExtItem;
-            }
+        for (uint i=0; i<length; i++) { 
+            result[i]                       = poolList[i];
+            resultExt[i]                    = poolListExtras[i];
         }
         return (result, resultExt);
+    }
+
+    function getPoolRewardList(uint _stakeID) public view returns(RewardDef[] memory){
+        uint length = poolList[_stakeID].rewardCount;
+        RewardDef[] memory result = new RewardDef[](length);
+
+        for (uint i=0; i<length; i++) { 
+            result[i] = poolRewardList[_stakeID][i];
+        }
+
+        return result;
     }
 
     /// @notice             Returns stake pool
@@ -346,7 +352,7 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
         poolList[stakeIDCounter] = PoolDef(_poolAddress, length, stakeIDCounter, false);
         poolListExtras[stakeIDCounter] = PoolDefExt(block.timestamp, 0, _poolName);
-        stakeIDCounter += 1;
+        stakeIDCounter = stakeIDCounter.add(1);
 
         return stakeIDCounter.sub(1);
     }
@@ -365,5 +371,9 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
         require(poolListExtras[_stakeID].name!="", "Stake: Contract is not valid");
         require(poolList[_stakeID].active==false,"Stake: Contract is already enabled");
         poolList[_stakeID].active = true;
+    }
+
+    function getPoolCount() public view returns(uint){
+        return stakeIDCounter;
     }
  }
