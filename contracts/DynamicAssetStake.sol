@@ -29,8 +29,7 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
     
     struct RewardDef{
         address tokenAddress;               // Contract Address of Reward token
-        uint256 rewardPerSecond;            // TODO
-        uint256 accTokenPerShare;           // TODO
+        uint256 rewardPerSecond;            // Accepted reward per second 
         bytes32 name;                       // Byte equivalent of the name of the pool token
         uint8 feeRate;                      // Fee Rate for Reward Harvest
         uint id;                            // Id of Reward
@@ -52,8 +51,12 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
     struct PoolVariable{                    // Only owner can edit
         uint256 balance;                    // Pool Contract Token Balance
         uint256 balanceFee;                 // Withdraw Fee for contract Owner;
-        uint256 lastRewardTimeStamp;        // TODO...
+        uint256 lastRewardTimeStamp;        // Last date reward was calculated
         uint8 feeRate;                      // Fee Rate for UnStake
+    }
+
+    struct PoolRewardVariable{
+        uint256 accTokenPerShare;           // Token share to be distributed to users
     }
     
     // Info of each user
@@ -77,6 +80,8 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
     mapping(uint => PoolVariable) public poolVariable;
     //Pool ID => (RewardIndex => RewardDef) 
     mapping(uint => mapping(uint => RewardDef)) public poolRewardList;
+    //Pool ID => (RewardIndex => PoolRewardVariable)
+    mapping(uint => mapping(uint => PoolRewardVariable)) public poolRewardVariableInfo;
     //Pool ID => (RewardIndex => Amount of distributed reward to staker) 
     mapping(uint => mapping(uint => uint)) public poolPaidOut;
     //Pool ID => Amount of Stake from User
@@ -115,7 +120,7 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
         uint rewardCount = poolList[_stakeID].rewardCount;
         for (uint i=0; i<rewardCount; i++) {
             uint256 currentReward = timeDiff.mul(poolRewardList[_stakeID][i].rewardPerSecond);
-            poolRewardList[_stakeID][i].accTokenPerShare = poolRewardList[_stakeID][i].accTokenPerShare.add(currentReward.mul(1e36).div(poolTotalStake[_stakeID]));
+            poolRewardVariableInfo[_stakeID][i].accTokenPerShare = poolRewardVariableInfo[_stakeID][i].accTokenPerShare.add(currentReward.mul(1e36).div(poolTotalStake[_stakeID]));
         }
         //..:: Calculating the reward shares of the pool ::..
         
@@ -132,7 +137,7 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
         PendingRewardInfo[] memory result = new PendingRewardInfo[](rewardCount);
 
         for (uint RewardIndex=0; RewardIndex<rewardCount; RewardIndex++) {
-            uint _accTokenPerShare = poolRewardList[_stakeID][RewardIndex].accTokenPerShare;
+            uint _accTokenPerShare = poolRewardVariableInfo[_stakeID][RewardIndex].accTokenPerShare;
 
             if (lastTimeStamp > poolVariable[_stakeID].lastRewardTimeStamp && poolTotalStake[_stakeID] != 0) {
                 uint256 timeDiff = lastTimeStamp.sub(poolVariable[_stakeID].lastRewardTimeStamp);
@@ -175,7 +180,7 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
         for (uint RewardIndex=0; RewardIndex<rewardCount; RewardIndex++) {
             uint256 userRewardedBalance = poolUserRewardInfo[_stakeID][_msgSender()][RewardIndex].rewardBalance;
             uint pendingAmount = user.stakingBalance
-                                            .mul(poolRewardList[_stakeID][RewardIndex].accTokenPerShare)
+                                            .mul(poolRewardVariableInfo[_stakeID][RewardIndex].accTokenPerShare)
                                             .div(1e36)
                                             .sub(userRewardedBalance);
 
@@ -240,7 +245,7 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
                 uint256 userRewardedBalance = poolUserRewardInfo[_stakeID][_msgSender()][RewardIndex].rewardBalance;
                 
                 uint pendingAmount = user.stakingBalance
-                                                .mul(poolRewardList[_stakeID][RewardIndex].accTokenPerShare)
+                                                .mul(poolRewardVariableInfo[_stakeID][RewardIndex].accTokenPerShare)
                                                 .div(1e36)
                                                 .sub(userRewardedBalance);    
                 
@@ -260,7 +265,7 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
         
         // ..:: Calculating the rewards users deserve ::..
         for (uint i=0; i<rewardCount; i++) {
-            poolUserRewardInfo[_stakeID][_msgSender()][i].rewardBalance = user.stakingBalance.mul(poolRewardList[_stakeID][i].accTokenPerShare).div(1e36);
+            poolUserRewardInfo[_stakeID][_msgSender()][i].rewardBalance = user.stakingBalance.mul(poolRewardVariableInfo[_stakeID][i].accTokenPerShare).div(1e36);
         }
         // ..:: Calculating the rewards users deserve ::..
         
@@ -300,15 +305,21 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
     }
 
     /// @notice Returns stake asset list of active
-    function getActiveStakeAssetList() public view returns(PoolDef[] memory){
+    function getActiveStakeAssetList() public view returns(PoolDef[] memory, PoolDefExt[] memory){
         uint length = stakeIDCounter;
 
         PoolDef[] memory result = new PoolDef[](length);
+        PoolDefExt[] memory resultExt = new PoolDefExt[](length);
+        
         for (uint i=0; i<length; i++) {
-            if (poolList[i].active==true) 
-                result[i] = poolList[i];
+            if (poolList[i].active==true){
+                PoolDef storage poolItem        = poolList[i];
+                PoolDefExt storage poolExtItem  = poolListExtras[i]; 
+                result[i]                       = poolItem;
+                resultExt[i]                    = poolExtItem;
+            }
         }
-        return result;
+        return (result, resultExt);
     }
 
     /// @notice             Returns stake pool
