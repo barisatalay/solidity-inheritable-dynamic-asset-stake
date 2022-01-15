@@ -12,7 +12,6 @@ const tokenNameBanana = ethers.utils.formatBytes32String("BananaToken");
 type RewardDef = {
     tokenAddress: string;
     rewardPerSecond: BigNumber;
-    accTokenPerShare: BigNumber;
     name: string;
     feeRate: number;
     id: number;
@@ -30,6 +29,7 @@ describe('DynamicAssetStake', ()=>{
 
     let poolRewardApple: any
     let poolRewardBanana: any
+    let poolRewardBananaAndApple: any
 
     before(async function () {
         let Token1 = await ethers.getContractFactory('StakeToken');
@@ -65,7 +65,7 @@ describe('DynamicAssetStake', ()=>{
 
     describe('Initiation', () => {
         it('Should stake pool must empty', async()=>{
-            let activePoolList, activePoolExtList 
+            let activePoolList: string | any[], activePoolExtList: string | any[] 
             [activePoolList, activePoolExtList] =  await stakeContract.getPoolList();
             expect(activePoolList.length).to.eq(0);
             expect(activePoolExtList.length).to.eq(0);
@@ -75,7 +75,6 @@ describe('DynamicAssetStake', ()=>{
             
             rewardList.push({tokenAddress: rewardApple.address,
                             rewardPerSecond: ethers.BigNumber.from("47500000000000000"),
-                            accTokenPerShare: ethers.BigNumber.from("0"),
                             name: tokenNameApple,
                             feeRate: 1,
                             id: 0});
@@ -83,7 +82,7 @@ describe('DynamicAssetStake', ()=>{
             await stakeContract.addNewStakePool(defaultStakeToken.address, tokenNameStake, rewardList);
             
             
-            let activePoolList, activePoolExtList; 
+            let activePoolList: string | any[], activePoolExtList: any[]; 
             [activePoolList, activePoolExtList] =  await stakeContract.getPoolList();
             poolRewardApple = activePoolList[0];
             const poolDefExt = activePoolExtList[0];
@@ -92,7 +91,6 @@ describe('DynamicAssetStake', ()=>{
             expect(poolDefExt.name).to.eq(tokenNameStake)
             expect(poolRewardApple.active).to.eq(false);
         })
-
         it('Should get poolRewardApple and reward list', async()=>{
             const pool = await stakeContract.getStakePoolByID(poolRewardApple.id)
             const poolRewardList = await stakeContract.getPoolRewardList(pool.id);
@@ -102,7 +100,6 @@ describe('DynamicAssetStake', ()=>{
             expect(appleReward.name).to.eq(tokenNameApple);
             expect(appleReward.tokenAddress).to.eq(rewardApple.address);
         });
-
         it("Should add new stake pool rewardBanana", async() => {
             let rewardList: RewardDef[] = [];
             
@@ -110,7 +107,6 @@ describe('DynamicAssetStake', ()=>{
 
             rewardList.push({tokenAddress: rewardBanana.address,
                             rewardPerSecond: ethers.BigNumber.from("47500000000000000"),
-                            accTokenPerShare: ethers.BigNumber.from("0"),
                             name: tokenNameBanana,
                             feeRate: 1,
                             id: 0});
@@ -119,7 +115,7 @@ describe('DynamicAssetStake', ()=>{
             
             expect( await stakeContract.getPoolCount()).to.eq(2);
 
-            let activePoolList, activePoolExtList; 
+            let activePoolList: string | any[], activePoolExtList: any[]; 
             [activePoolList, activePoolExtList] =  await stakeContract.getPoolList();
             poolRewardBanana = activePoolList[1];
             const poolDefExt = activePoolExtList[1];
@@ -127,8 +123,7 @@ describe('DynamicAssetStake', ()=>{
             expect(activePoolList.length).to.eq(2);
             expect(poolDefExt.name).to.eq(tokenNameStake)
             expect(poolRewardBanana.active).to.eq(false);
-        })
-
+        });
         it('Should get poolRewardBanana and reward list', async()=>{
             const pool = await stakeContract.getStakePoolByID(poolRewardBanana.id)
             const poolRewardList = await stakeContract.getPoolRewardList(pool.id);
@@ -137,6 +132,89 @@ describe('DynamicAssetStake', ()=>{
             expect(poolRewardList.length).to.eq(1);
             expect(bananaReward.name).to.eq(tokenNameBanana);
             expect(bananaReward.tokenAddress).to.eq(rewardBanana.address); 
+        });
+
+        it("Should add new stake pool rewardBananaAndApple", async() => {
+            let rewardList: RewardDef[] = [];
+            
+            expect( await stakeContract.getPoolCount()).to.eq(2);
+
+            rewardList.push({tokenAddress: rewardBanana.address,
+                            rewardPerSecond: ethers.BigNumber.from("47500000000000000"),
+                            name: tokenNameBanana,
+                            feeRate: 1,
+                            id: 0});
+
+            rewardList.push({tokenAddress: rewardApple.address,
+                            rewardPerSecond: ethers.BigNumber.from("47500000000000000"),
+                            name: tokenNameApple,
+                            feeRate: 3,
+                            id: 0});
+
+            await stakeContract.addNewStakePool(defaultStakeToken.address, tokenNameStake, rewardList);
+            
+            expect( await stakeContract.getPoolCount()).to.eq(3);
+
+            let activePoolList: any[], activePoolExtList: any[]; 
+            [activePoolList, activePoolExtList] =  await stakeContract.getPoolList();
+                    
+            poolRewardBananaAndApple = activePoolList[2];
+            //console.log("poolRewardBananaAndApple: " + poolRewardBananaAndApple);
+            
+            const poolDefExt = activePoolExtList[2];
+
+            expect(activePoolList.length).to.eq(3);
+            expect(poolDefExt.name).to.eq(tokenNameStake)
+            expect(poolRewardBananaAndApple.active).to.eq(false);
+        });
+
+        it('Should get poolRewardBananaAndApple and reward list', async()=>{
+            const pool = await stakeContract.getStakePoolByID(poolRewardBananaAndApple.id)
+            const poolRewardList = await stakeContract.getPoolRewardList(pool.id);
+            const bananaReward = poolRewardList[0];
+            const appleReward = poolRewardList[1];
+
+            //console.log(poolRewardList);
+            
+            expect(poolRewardList.length).to.eq(2);
+            expect(bananaReward.name).to.eq(tokenNameBanana);
+            expect(appleReward.name).to.eq(tokenNameApple);
+            expect(bananaReward.tokenAddress).to.eq(rewardBanana.address); 
+            expect(appleReward.tokenAddress).to.eq(rewardApple.address); 
+        });
+
+        it('Should owner deposite reward tokens',async()=>{
+
+        })
+
+        it('Should owner change pools enable', async()=>{
+            let pool = await stakeContract.getStakePoolByID(poolRewardBananaAndApple.id);
+            let activeBefore = pool.active;
+            await stakeContract.enableStakePool(poolRewardBananaAndApple.id);
+            pool = await stakeContract.getStakePoolByID(poolRewardBananaAndApple.id);
+            let activeAfter = pool.active;
+            
+            expect(activeBefore).to.be.false;
+            expect(activeAfter).to.be.true;
+
+            pool = await stakeContract.getStakePoolByID(poolRewardApple.id);
+            activeBefore = pool.active;
+            await stakeContract.enableStakePool(poolRewardApple.id);
+            pool = await stakeContract.getStakePoolByID(poolRewardApple.id);
+            activeAfter = pool.active;
+            
+            expect(activeBefore).to.be.false;
+            expect(activeAfter).to.be.true;
+
+            pool = await stakeContract.getStakePoolByID(poolRewardBanana.id);
+            activeBefore = pool.active;
+            await stakeContract.enableStakePool(poolRewardBanana.id);
+            pool = await stakeContract.getStakePoolByID(poolRewardBanana.id);
+            activeAfter = pool.active;
+            
+            expect(activeBefore).to.be.false;
+            expect(activeAfter).to.be.true;
+
         });
     });
 });
