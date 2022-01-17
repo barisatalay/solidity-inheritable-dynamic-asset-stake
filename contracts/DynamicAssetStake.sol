@@ -19,9 +19,7 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
     event UnStake(address indexed from, uint256 amount);
     event YieldWithdraw(address indexed to);
     
-    address private storageAddress = address(this);
-
-    struct PendingRewardInfo{
+    struct PendingRewardInfo{               //
         bytes32 name;                       // Byte equivalent of the name of the pool token
         uint256 amount;                     // TODO...
         uint id;                            // Id of Reward
@@ -49,7 +47,6 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
     }
 
     struct PoolVariable{                    // Only owner can edit
-        uint256 balance;                    // Pool Contract Token Balance
         uint256 balanceFee;                 // Withdraw Fee for contract Owner;
         uint256 lastRewardTimeStamp;        // Last date reward was calculated
         uint8 feeRate;                      // Fee Rate for UnStake
@@ -57,6 +54,7 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
     struct PoolRewardVariable{
         uint256 accTokenPerShare;           // Token share to be distributed to users
+        uint256 balance;                    // Pool Contract Token Balance
     }
     
     // Info of each user
@@ -216,7 +214,7 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
         // ..:: Updated last user info ::..
 
         if (finalUnStakeAmount > 0)
-            getStakeContract(_stakeID).safeTransferFrom(storageAddress, _msgSender(), finalUnStakeAmount);
+            getStakeContract(_stakeID).safeTransferFrom(address(this), _msgSender(), finalUnStakeAmount);
         emit UnStake(_msgSender(), _amount);
     }
 
@@ -225,8 +223,9 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
     /// @param  _amount     Amount of deposit asset
     function stake(uint _stakeID, uint256 _amount) public{
         IERC20 selectedToken = getStakeContract(_stakeID);
+        require(selectedToken.allowance(_msgSender(), address(this)) > 0, "Stake: No balance allocated for Allowance!");
         require(_amount > 0 && selectedToken.balanceOf(_msgSender()) >= _amount, "Stake: You cannot stake zero tokens");
-        require(storageAddress != address(0), "Stake: Storage address did not set");
+        require(address(this) != address(0), "Stake: Storage address did not set");
 
         UserDef storage user =  poolUserInfo[_stakeID][_msgSender()];
 
@@ -234,8 +233,8 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
         if (_amount > selectedToken.balanceOf(_msgSender()))
             _amount = selectedToken.balanceOf(_msgSender());
 
-        // Amount transfer to storageAddress
-        selectedToken.safeTransferFrom(_msgSender(), storageAddress, _amount);
+        // Amount transfer to address(this)
+        selectedToken.safeTransferFrom(_msgSender(), address(this), _amount);
         
         UpdatePoolRewardShare(_stakeID);
         uint rewardCount = poolList[_stakeID].rewardCount;
@@ -250,7 +249,7 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
                                                 .sub(userRewardedBalance);    
                 
                 // Updating balance pending to be distributed from contract to users
-                poolVariable[_stakeID].balance = poolVariable[_stakeID].balance.sub(pendingAmount);
+                poolRewardVariableInfo[_stakeID][RewardIndex].balance = poolRewardVariableInfo[_stakeID][RewardIndex].balance.sub(pendingAmount);
 
                 getRewardTokenContract(_stakeID, RewardIndex).safeTransfer(_msgSender(), pendingAmount);
                 poolPaidOut[_stakeID][RewardIndex] = poolPaidOut[_stakeID][RewardIndex].add(pendingAmount); 
@@ -328,6 +327,10 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
         return result;
     }
 
+    function getPoolReward(uint _stakeID, uint _rewardID) public view returns(RewardDef memory, PoolRewardVariable memory){
+        return (poolRewardList[_stakeID][_rewardID],  poolRewardVariableInfo[_stakeID][_rewardID]);
+    }
+
     /// @notice             Returns stake pool
     /// @param  _stakeID    Id of the stake pool
     /// @return             TODO...
@@ -375,5 +378,30 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
     function getPoolCount() public view returns(uint){
         return stakeIDCounter;
+    }
+
+    function depositToRewardByPoolID(uint _stakeID, uint _rewardID, uint256 _amount) public onlyOwner returns(bool){
+        IERC20 selectedToken = getRewardTokenContract(_stakeID, _rewardID);
+        require(selectedToken.allowance(owner(), address(this)) > 0, "Stake: No balance allocated for Allowance!");
+        require(_amount > 0, "Stake: You cannot stake zero tokens");
+        require(address(this) != address(0), "Stake: Storage address did not set");
+
+        // Amount leak control
+        if (_amount > selectedToken.balanceOf(_msgSender()))
+            _amount = selectedToken.balanceOf(_msgSender());
+
+        // Amount transfer to address(this)
+        selectedToken.safeTransferFrom(_msgSender(), address(this), _amount);
+        
+        poolRewardVariableInfo[_stakeID][_rewardID].balance = poolRewardVariableInfo[_stakeID][_rewardID].balance.add(_amount); 
+        return true;
+    }
+
+    function withdrawRewardByPoolID(uint _stakeID, uint _rewardID, uint256 _amount) public onlyOwner returns(bool){
+        poolRewardVariableInfo[_stakeID][_rewardID].balance = poolRewardVariableInfo[_stakeID][_rewardID].balance.sub(_amount);
+
+        IERC20 selectedToken = getRewardTokenContract(_stakeID, _rewardID);
+        selectedToken.safeTransfer(_msgSender(), _amount);
+        return true;
     }
  }
