@@ -225,7 +225,6 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
         IERC20 selectedToken = getStakeContract(_stakeID);
         require(selectedToken.allowance(_msgSender(), address(this)) > 0, "Stake: No balance allocated for Allowance!");
         require(_amount > 0 && selectedToken.balanceOf(_msgSender()) >= _amount, "Stake: You cannot stake zero tokens");
-        require(address(this) != address(0), "Stake: Storage address did not set");
 
         UserDef storage user =  poolUserInfo[_stakeID][_msgSender()];
 
