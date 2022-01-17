@@ -183,10 +183,6 @@ describe('DynamicAssetStake', ()=>{
             expect(appleReward.tokenAddress).to.eq(rewardApple.address); 
         });
 
-        it('Should owner deposite reward tokens',async()=>{
-
-        })
-
         it('Should owner change pools enable', async()=>{
             let pool = await stakeContract.getStakePoolByID(poolRewardBananaAndApple.id);
             let activeBefore = pool.active;
@@ -214,7 +210,70 @@ describe('DynamicAssetStake', ()=>{
             
             expect(activeBefore).to.be.false;
             expect(activeAfter).to.be.true;
+        });
 
+        it('Should owner change pools disable', async()=>{
+            let pool = await stakeContract.getStakePoolByID(poolRewardBananaAndApple.id);
+            let activeBefore = pool.active;
+            await stakeContract.disableStakePool(poolRewardBananaAndApple.id);
+            pool = await stakeContract.getStakePoolByID(poolRewardBananaAndApple.id);
+            let activeAfter = pool.active;
+            
+            expect(activeBefore).to.be.true;
+            expect(activeAfter).to.be.false;
+
+            pool = await stakeContract.getStakePoolByID(poolRewardApple.id);
+            activeBefore = pool.active;
+            await stakeContract.disableStakePool(poolRewardApple.id);
+            pool = await stakeContract.getStakePoolByID(poolRewardApple.id);
+            activeAfter = pool.active;
+            
+            expect(activeBefore).to.be.true;
+            expect(activeAfter).to.be.false;
+
+            pool = await stakeContract.getStakePoolByID(poolRewardBanana.id);
+            activeBefore = pool.active;
+            await stakeContract.disableStakePool(poolRewardBanana.id);
+            pool = await stakeContract.getStakePoolByID(poolRewardBanana.id);
+            activeAfter = pool.active;
+            
+            expect(activeBefore).to.be.true;
+            expect(activeAfter).to.be.false;
+
+        });
+
+        it('Should owner deposite reward tokens',async()=>{
+            await rewardBanana.connect(owner).approve(stakeContract.address, rewardAmount);
+            
+            const pool = await stakeContract.getStakePoolByID(poolRewardBanana.id)
+            let [rewardDef, rewardVariable] = await stakeContract.getPoolReward(pool.id, 0);
+            const beforeRewardBalance = rewardVariable.balance
+
+            await stakeContract.depositToRewardByPoolID(pool.id, 0, rewardAmount);
+            
+            [rewardDef, rewardVariable] = await stakeContract.getPoolReward(pool.id, 0);
+            const afterRewardBalance = rewardVariable.balance;
+            
+            expect(beforeRewardBalance).to.not.eq(afterRewardBalance);
+            expect(afterRewardBalance).to.eq(rewardAmount);
+        });
+
+        it('Should owner withdraw reward tokens',async()=>{
+            const withdrawAmount = ethers.BigNumber.from("1000000");
+
+            //await rewardBanana.connect(stakeContract.address).approve(stakeContract.address, withdrawAmount);
+
+            const pool = await stakeContract.getStakePoolByID(poolRewardBanana.id)
+            let [rewardDef, rewardVariable] = await stakeContract.getPoolReward(pool.id, 0);
+            const beforeRewardBalance = rewardVariable.balance
+
+            await stakeContract.withdrawRewardByPoolID(pool.id, 0, withdrawAmount);
+            
+            [rewardDef, rewardVariable] = await stakeContract.getPoolReward(pool.id, 0);
+            const afterRewardBalance = rewardVariable.balance;
+            
+            expect(beforeRewardBalance).to.not.eq(afterRewardBalance);
+            expect(afterRewardBalance).to.eq(beforeRewardBalance.sub(withdrawAmount));
         });
     });
 });
