@@ -19,7 +19,7 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
     event UnStake(address indexed from, uint256 amount);
     event YieldWithdraw(address indexed to);
     
-    struct PendingRewardInfo{               //
+    struct PendingRewardResponse{               //
         bytes32 name;                       // Byte equivalent of the name of the pool token
         uint256 amount;                     // TODO...
         uint id;                            // Id of Reward
@@ -128,11 +128,11 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
     /// @notice             TODO...
     /// @param  _stakeID    Id of the stake pool
     /// @return             TODO...
-    function showPendingReward(uint _stakeID) public virtual view returns(PendingRewardInfo[] memory) { 
+    function showPendingReward(uint _stakeID) public virtual view returns(PendingRewardResponse[] memory) { 
         UserDef memory user =  poolUserInfo[_stakeID][_msgSender()];
         uint256 lastTimeStamp = block.timestamp;
         uint rewardCount = poolList[_stakeID].rewardCount;
-        PendingRewardInfo[] memory result = new PendingRewardInfo[](rewardCount);
+        PendingRewardResponse[] memory result = new PendingRewardResponse[](rewardCount);
 
         for (uint RewardIndex=0; RewardIndex<rewardCount; RewardIndex++) {
             uint _accTokenPerShare = poolRewardVariableInfo[_stakeID][RewardIndex].accTokenPerShare;
@@ -142,7 +142,7 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
                 uint256 currentReward = timeDiff.mul(poolRewardList[_stakeID][RewardIndex].rewardPerSecond);
                 _accTokenPerShare = _accTokenPerShare.add(currentReward.mul(1e36).div(poolTotalStake[_stakeID]));
             }
-            result[RewardIndex] = PendingRewardInfo({
+            result[RewardIndex] = PendingRewardResponse({
                 id:     RewardIndex,
                 name:   poolRewardList[_stakeID][RewardIndex].name,
                 amount: user.stakingBalance

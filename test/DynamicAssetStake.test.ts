@@ -2,12 +2,14 @@ import chai, { expect } from "chai";
 import { ethers } from "hardhat";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { Contract, BigNumber } from "ethers";
+import { time } from "@openzeppelin/test-helpers";
 
 const userAmount = ethers.BigNumber.from("1000000");
 const rewardAmount = ethers.BigNumber.from("1000000000");
 const tokenNameStake = ethers.utils.formatBytes32String("StakeToken");
 const tokenNameApple = ethers.utils.formatBytes32String("AppleTokn");
 const tokenNameBanana = ethers.utils.formatBytes32String("BananaToken");
+const rewardPersecondStandart = ethers.BigNumber.from("47500000000000000");
 
 type RewardDef = {
     tokenAddress: string;
@@ -58,7 +60,6 @@ describe('DynamicAssetStake', ()=>{
             expect(rewardApple).to.be.ok
             expect(rewardBanana).to.be.ok
         })
-
         it('Should set the right owner', async () => {
             expect(await stakeContract.owner()).to.equal(owner.address);
         });
@@ -75,7 +76,7 @@ describe('DynamicAssetStake', ()=>{
             let rewardList: RewardDef[] = [];
             
             rewardList.push({tokenAddress: rewardApple.address,
-                            rewardPerSecond: ethers.BigNumber.from("47500000000000000"),
+                            rewardPerSecond: rewardPersecondStandart,
                             name: tokenNameApple,
                             feeRate: 1,
                             id: 0});
@@ -107,7 +108,7 @@ describe('DynamicAssetStake', ()=>{
             expect( await stakeContract.getPoolCount()).to.eq(1);
 
             rewardList.push({tokenAddress: rewardBanana.address,
-                            rewardPerSecond: ethers.BigNumber.from("47500000000000000"),
+                            rewardPerSecond: rewardPersecondStandart,
                             name: tokenNameBanana,
                             feeRate: 1,
                             id: 0});
@@ -140,13 +141,13 @@ describe('DynamicAssetStake', ()=>{
             expect( await stakeContract.getPoolCount()).to.eq(2);
 
             rewardList.push({tokenAddress: rewardBanana.address,
-                            rewardPerSecond: ethers.BigNumber.from("47500000000000000"),
+                            rewardPerSecond: rewardPersecondStandart,
                             name: tokenNameBanana,
                             feeRate: 1,
                             id: 0});
 
             rewardList.push({tokenAddress: rewardApple.address,
-                            rewardPerSecond: ethers.BigNumber.from("47500000000000000"),
+                            rewardPerSecond: rewardPersecondStandart,
                             name: tokenNameApple,
                             feeRate: 3,
                             id: 0});
@@ -242,7 +243,7 @@ describe('DynamicAssetStake', ()=>{
             let rewardList: RewardDef[] = [];
             
             rewardList.push({tokenAddress: rewardApple.address,
-                            rewardPerSecond: ethers.BigNumber.from("47500000000000000"),
+                            rewardPerSecond: rewardPersecondStandart,
                             name: tokenNameApple,
                             feeRate: 100,
                             id: 0});
@@ -291,7 +292,7 @@ describe('DynamicAssetStake', ()=>{
     });
 
     describe('Staking', () => {
-        it('Should owner deposite reward tokens',async()=>{
+        it('Should OWNER deposite reward tokens',async()=>{
             await rewardBanana.connect(owner).approve(stakeContract.address, rewardAmount);
             
             const pool = await stakeContract.getStakePoolByID(poolRewardBanana.id)
@@ -306,7 +307,7 @@ describe('DynamicAssetStake', ()=>{
             expect(beforeRewardBalance).to.not.eq(afterRewardBalance);
             expect(afterRewardBalance).to.eq(rewardAmount);
         });
-        it('Should owner withdraw reward tokens',async()=>{
+        it('Should OWNER withdraw reward tokens',async()=>{
             const withdrawAmount = ethers.BigNumber.from("1000");
 
             const pool = await stakeContract.getStakePoolByID(poolRewardBanana.id)
@@ -321,7 +322,7 @@ describe('DynamicAssetStake', ()=>{
             expect(beforeRewardBalance).to.not.eq(afterRewardBalance);
             expect(afterRewardBalance).to.eq(beforeRewardBalance.sub(withdrawAmount));
         });
-        it('Should owner deposite multi reward tokens',async()=>{
+        it('Should OWNER deposite multi reward tokens',async()=>{
             const pool = await stakeContract.getStakePoolByID(poolRewardBananaAndApple.id)
 
             await expect(stakeContract.depositToRewardByPoolID(pool.id, 0, rewardAmount))
@@ -393,6 +394,39 @@ describe('DynamicAssetStake', ()=>{
     });
 
     describe('UnStaking', ()=>{
+        it('Should show pending reward',async()=>{
+            // Fast-forward time
+            await time.increase(1000)
+            
+            let pendinRewardAmount = await stakeContract.connect(user2).showPendingReward(poolRewardBanana.id);
+            
+            expect(pendinRewardAmount).to.be.an('array');
 
+            for (let item of pendinRewardAmount) {                
+                expect(Number(item.amount)).to.greaterThan(0,"Pending single reward calculation error")
+            }            
+            
+            pendinRewardAmount = await stakeContract.connect(user1).showPendingReward(poolRewardBananaAndApple.id);
+            
+            expect(pendinRewardAmount).to.be.an('array');
+
+            for (let item of pendinRewardAmount) {
+                expect(Number(item.amount)).to.greaterThan(0,"Pending multi reward calculation error")
+            }   
+        });
+
+        it('Should unstake balance from user single reward',async()=>{
+            // Fast-forward time
+            await time.increase(5000)
+
+            const defaultUserStake = userAmount.mul(10).div(100);
+
+            const userStakeBalance = await stakeContract.balanceOf(poolRewardBanana.id, user2.address);
+
+            expect(userStakeBalance).to.eq(defaultUserStake);
+            
+            const beforeUserBalance = await rewardBanana.balanceOf(user2.address);
+            
+        });
     });
 });
