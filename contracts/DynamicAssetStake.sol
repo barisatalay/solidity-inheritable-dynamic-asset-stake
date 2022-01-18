@@ -128,7 +128,7 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
     /// @notice             TODO...
     /// @param  _stakeID    Id of the stake pool
     /// @return             TODO...
-    function showPendingReward(uint _stakeID) external virtual returns(PendingRewardInfo[] memory) { 
+    function showPendingReward(uint _stakeID) public virtual view returns(PendingRewardInfo[] memory) { 
         UserDef memory user =  poolUserInfo[_stakeID][_msgSender()];
         uint256 lastTimeStamp = block.timestamp;
         uint rewardCount = poolList[_stakeID].rewardCount;
