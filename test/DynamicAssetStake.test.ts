@@ -293,6 +293,10 @@ describe('DynamicAssetStake', ()=>{
             const beforeRewardPerSecond = await stakeContract.getRewardPerSecond(poolRewardBanana.id, 0);
             const updatedRewardPerSecond = beforeRewardPerSecond + 2
 
+            await expect(stakeContract.connect(user1).updateRewardPerSecond(poolRewardBanana.id, 0, updatedRewardPerSecond))
+                .to.be
+                .revertedWith('Ownable: caller is not the owner');
+            
             await stakeContract.updateRewardPerSecond(poolRewardBanana.id, 0, updatedRewardPerSecond);
 
             const afterRewardPerSecond = await stakeContract.getRewardPerSecond(poolRewardBanana.id, 0);
@@ -313,6 +317,34 @@ describe('DynamicAssetStake', ()=>{
             await expect(stakeContract.updateRewardPerSecond(poolRewardBanana.id, 0, currentRewardPerSecond))
                 .to.be
                 .revertedWith('Reward per Second no change! Because it is same.');
+        });
+        it('Should OWNER change reward fee',async()=>{
+            
+            await expect(stakeContract.connect(user1).updateRewardFeeRate(poolRewardBanana.id, 0, 2))
+                .to.be
+                .revertedWith('Ownable: caller is not the owner');
+            
+            await stakeContract.updateRewardFeeRate(poolRewardBanana.id, 0, 2);
+            
+            await expect(stakeContract.updateRewardFeeRate(poolRewardBanana.id, 0, 2))
+                .to.be
+                .revertedWith('FeeRate no change! Because it is same.');
+
+                await stakeContract.updateRewardFeeRate(poolRewardBanana.id, 0, 1);
+        });
+        it('Should OWNER change unstake fee',async()=>{
+            
+            await expect(stakeContract.connect(user1).updateUnStakeFeeRate(poolRewardBanana.id, 2))
+                .to.be
+                .revertedWith('Ownable: caller is not the owner');
+            
+            await stakeContract.updateUnStakeFeeRate(poolRewardBanana.id, 2);
+            
+            await expect(stakeContract.updateUnStakeFeeRate(poolRewardBanana.id, 2))
+                .to.be
+                .revertedWith('UnStake FeeRate no change! Because it is same.');
+
+                await stakeContract.updateUnStakeFeeRate(poolRewardBanana.id, 1);
         });
     });
 
@@ -441,12 +473,28 @@ describe('DynamicAssetStake', ()=>{
         });
         it('Should unstake balance from user single reward without TimeDiff',async()=>{
             const beforeStakedBalance = await stakeContract.balanceOf(poolRewardBanana.id, user2.address);
-            
+            const unStakeFee = await stakeContract.getUnStakeFeeRate(poolRewardBanana.id);
+            const feeAmount = beforeStakedBalance.mul(unStakeFee).div(100);
+
+            const beforeTokenBalance = await defaultStakeToken.balanceOf(user2.address);
+
             await stakeContract.connect(user2).unStake(poolRewardBanana.id, beforeStakedBalance);
 
+            const afterTokenBalance = await defaultStakeToken.balanceOf(user2.address);
             const afterStakedBalance = await stakeContract.balanceOf(poolRewardBanana.id, user2.address);
             
+            /*
+            console.log("beforeStakedBalance: " + beforeStakedBalance);
+            console.log("beforeTokenBalance: " + beforeTokenBalance);
+            
+            console.log("--------------------");
+            
+            console.log("afterTokenBalance: " + afterTokenBalance);
+            console.log("afterStakedBalance: " + afterStakedBalance);
+            console.log("feeAmount: " + feeAmount);
+            */
             expect(afterStakedBalance).to.eq(0);
+            expect(beforeStakedBalance).to.eq(afterTokenBalance.sub(beforeTokenBalance).add(feeAmount));
             
         });   
         it('Should stake and unstake balance from user single reward',async()=>{
@@ -462,7 +510,7 @@ describe('DynamicAssetStake', ()=>{
             await stakeContract.connect(user2).stake(poolRewardBanana.id, toStake);
             
             const afterUserStakeTokenBalance = await defaultStakeToken.balanceOf(user2.address);
-            
+
             expect(afterUserStakeTokenBalance).to.eq(beforeUserStakeTokenBalance.sub(toStake));
             let timeStr = await stakeContract.getTime()
             
@@ -476,13 +524,24 @@ describe('DynamicAssetStake', ()=>{
                 pendingBananaRewardAmount = item.amount;
             }
 
+            const beforeUnStakedBalance = await stakeContract.balanceOf(poolRewardBanana.id, user2.address);
+            
             await stakeContract.connect(user2).unStake(poolRewardBanana.id, toStake);
             
             const afterUnStakeUserStakeTokenBalance = await defaultStakeToken.balanceOf(user2.address);
             const afterUnStakeBananaTokenBalance = await rewardBanana.balanceOf(user2.address);
+            
+            const unStakeFee = await stakeContract.getUnStakeFeeRate(poolRewardBanana.id);
+            const feeAmount = beforeUnStakedBalance.mul(unStakeFee).div(100);
 
+            console.log("beforeStakedBalance:               " + beforeStakedBalance);
+            console.log("beforeUserStakeTokenBalance:       " + beforeUserStakeTokenBalance);
+            console.log("afterUnStakeUserStakeTokenBalance: " + afterUnStakeUserStakeTokenBalance);
+            console.log("unStakeFee: " + unStakeFee);
+            console.log("feeAmount: " + feeAmount);
+            
             expect(pendingBananaRewardAmount).to.eq(afterUnStakeBananaTokenBalance.sub(beforeBananaTokenBalance));
-            expect(afterUnStakeUserStakeTokenBalance).to.eq(beforeUserStakeTokenBalance);
+            expect(afterUnStakeUserStakeTokenBalance).to.eq(beforeUserStakeTokenBalance.sub(feeAmount));
         });
         it('Should stake and unstake balance from user MULTI reward',async()=>{
             //TODO

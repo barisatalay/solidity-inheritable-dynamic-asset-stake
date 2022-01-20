@@ -186,7 +186,7 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
                 
         // ..:: Updated last user info ::..
         user.startTime = block.timestamp;
-        user.stakingBalance = user.stakingBalance.sub(finalUnStakeAmount);
+        user.stakingBalance = user.stakingBalance.sub(_amount);
         // ..:: Updated last user info ::..
 
         if (finalUnStakeAmount > 0)
@@ -365,7 +365,8 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
         poolList[stakeIDCounter] = PoolDef(_poolAddress, length, stakeIDCounter, false);
         poolListExtras[stakeIDCounter] = PoolDefExt(block.timestamp, 0, _poolName);
-        stakeIDCounter = stakeIDCounter.add(1);
+        poolVariable[stakeIDCounter] = PoolVariable(0, 0, 0); 
+        stakeIDCounter++;
 
         return stakeIDCounter.sub(1);
     }
@@ -434,6 +435,24 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
     function getRewardPerSecond(uint _stakeID, uint _rewardID) public view returns(uint256){
         return poolRewardList[_stakeID][_rewardID].rewardPerSecond;
+    }
+
+    function updateRewardFeeRate(uint _stakeID, uint _rewardID, uint8 _feeRate) public onlyOwner returns(bool){
+        RewardDef storage reward = poolRewardList[_stakeID][_rewardID];
+        require(reward.feeRate != _feeRate, "FeeRate no change! Because it is same.");
+        reward.feeRate = _feeRate;
+        return true;
+    }
+
+    function updateUnStakeFeeRate(uint _stakeID, uint8 _feeRate) public onlyOwner returns(bool){
+        PoolVariable storage def = poolVariable[_stakeID];
+        require(def.feeRate != _feeRate, "UnStake FeeRate no change! Because it is same.");
+        def.feeRate = _feeRate;
+        return true;
+    }
+
+    function getUnStakeFeeRate(uint _stakeID)public view returns(uint8){
+        return poolVariable[_stakeID].feeRate;
     }
 
     function getTime() public view returns(uint256){
