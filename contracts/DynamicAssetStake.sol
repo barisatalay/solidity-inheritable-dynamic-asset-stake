@@ -425,6 +425,17 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
         return true;
     }
 
+    function updateRewardPerSecond(uint _stakeID, uint _rewardID, uint256 _rewardPerSecond) public onlyOwner returns(bool){
+        RewardDef storage reward = poolRewardList[_stakeID][_rewardID];
+        require(reward.rewardPerSecond != _rewardPerSecond, "Reward per Second no change! Because it is same.");
+        reward.rewardPerSecond = _rewardPerSecond;
+        return true;
+    }
+
+    function getRewardPerSecond(uint _stakeID, uint _rewardID) public view returns(uint256){
+        return poolRewardList[_stakeID][_rewardID].rewardPerSecond;
+    }
+
     function getTime() public view returns(uint256){
         return block.timestamp; 
     }

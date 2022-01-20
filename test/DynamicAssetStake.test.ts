@@ -289,6 +289,31 @@ describe('DynamicAssetStake', ()=>{
             expect(activeBefore).to.be.false;
             expect(activeAfter).to.be.true;
         });
+        it('Should OWNER change pool reward RewardPerSecond value ', async()=>{
+            const beforeRewardPerSecond = await stakeContract.getRewardPerSecond(poolRewardBanana.id, 0);
+            const updatedRewardPerSecond = beforeRewardPerSecond + 2
+
+            await stakeContract.updateRewardPerSecond(poolRewardBanana.id, 0, updatedRewardPerSecond);
+
+            const afterRewardPerSecond = await stakeContract.getRewardPerSecond(poolRewardBanana.id, 0);
+            
+            expect(afterRewardPerSecond).to.eq(updatedRewardPerSecond);
+            expect(afterRewardPerSecond).to.not.eq(beforeRewardPerSecond);
+
+            await stakeContract.updateRewardPerSecond(poolRewardBanana.id, 0, beforeRewardPerSecond);
+
+            const revertedRewardPerSecond = await stakeContract.getRewardPerSecond(poolRewardBanana.id, 0);
+            
+            expect(revertedRewardPerSecond).to.eq(beforeRewardPerSecond);
+            expect(revertedRewardPerSecond).to.not.eq(afterRewardPerSecond);
+        });
+        it('Should fail change pool reward same value ', async()=>{
+            const currentRewardPerSecond = await stakeContract.getRewardPerSecond(poolRewardBanana.id, 0);
+            
+            await expect(stakeContract.updateRewardPerSecond(poolRewardBanana.id, 0, currentRewardPerSecond))
+                .to.be
+                .revertedWith('Reward per Second no change! Because it is same.');
+        });
     });
 
     describe('Staking', () => {
@@ -414,7 +439,6 @@ describe('DynamicAssetStake', ()=>{
                 expect(Number(item.amount)).to.greaterThan(0,"Pending multi reward calculation error")
             }   
         });
-        
         it('Should unstake balance from user single reward without TimeDiff',async()=>{
             const beforeStakedBalance = await stakeContract.balanceOf(poolRewardBanana.id, user2.address);
             
@@ -424,8 +448,7 @@ describe('DynamicAssetStake', ()=>{
             
             expect(afterStakedBalance).to.eq(0);
             
-        });
-        
+        });   
         it('Should stake and unstake balance from user single reward',async()=>{
             let beforeStakedBalance = await stakeContract.balanceOf(poolRewardBanana.id, user2.address);
             
@@ -460,6 +483,9 @@ describe('DynamicAssetStake', ()=>{
 
             expect(pendingBananaRewardAmount).to.eq(afterUnStakeBananaTokenBalance.sub(beforeBananaTokenBalance));
             expect(afterUnStakeUserStakeTokenBalance).to.eq(beforeUserStakeTokenBalance);
+        });
+        it('Should stake and unstake balance from user MULTI reward',async()=>{
+            //TODO
         });
     });
 });
