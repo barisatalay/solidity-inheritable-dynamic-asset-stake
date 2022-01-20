@@ -207,8 +207,8 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
                                             .sub(userRewardedBalance);
 
             if (pendingAmount > 0) {
-                uint256 finalRewardAmount;
-                
+                uint256 finalRewardAmount = pendingAmount;
+                              
                 if (_subtractFee){
                     uint256 pendingRewardFee; 
                     if (poolRewardList[_stakeID][RewardIndex].feeRate > 0)
@@ -402,5 +402,9 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
         IERC20 selectedToken = getRewardTokenContract(_stakeID, _rewardID);
         selectedToken.safeTransfer(_msgSender(), _amount);
         return true;
+    }
+
+    function getTime() public view returns(uint256){
+        return block.timestamp; 
     }
  }
