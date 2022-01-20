@@ -94,8 +94,8 @@ describe('DynamicAssetStake', ()=>{
             expect(poolRewardApple.active).to.eq(false);
         })
         it('Should get poolRewardApple and reward list', async()=>{
-            const pool = await stakeContract.getStakePoolByID(poolRewardApple.id)
-            const poolRewardList = await stakeContract.getPoolRewardList(pool.id);
+            const pool = await stakeContract.getPoolDefByID(poolRewardApple.id)
+            const poolRewardList = await stakeContract.getPoolRewardDefList(pool.id);
             const appleReward = poolRewardList[0];
 
             expect(poolRewardList.length).to.eq(1);
@@ -127,8 +127,8 @@ describe('DynamicAssetStake', ()=>{
             expect(poolRewardBanana.active).to.eq(false);
         });
         it('Should get poolRewardBanana and reward list', async()=>{
-            const pool = await stakeContract.getStakePoolByID(poolRewardBanana.id)
-            const poolRewardList = await stakeContract.getPoolRewardList(pool.id);
+            const pool = await stakeContract.getPoolDefByID(poolRewardBanana.id)
+            const poolRewardList = await stakeContract.getPoolRewardDefList(pool.id);
             const bananaReward = poolRewardList[0];
 
             expect(poolRewardList.length).to.eq(1);
@@ -169,8 +169,8 @@ describe('DynamicAssetStake', ()=>{
             expect(poolRewardBananaAndApple.active).to.eq(false);
         });
         it('Should get poolRewardBananaAndApple and reward list', async()=>{
-            const pool = await stakeContract.getStakePoolByID(poolRewardBananaAndApple.id)
-            const poolRewardList = await stakeContract.getPoolRewardList(pool.id);
+            const pool = await stakeContract.getPoolDefByID(poolRewardBananaAndApple.id)
+            const poolRewardList = await stakeContract.getPoolRewardDefList(pool.id);
             const bananaReward = poolRewardList[0];
             const appleReward = poolRewardList[1];
 
@@ -183,56 +183,56 @@ describe('DynamicAssetStake', ()=>{
             expect(appleReward.tokenAddress).to.eq(rewardApple.address); 
         });
         it('Should owner change pools enable', async()=>{
-            let pool = await stakeContract.getStakePoolByID(poolRewardBananaAndApple.id);
+            let pool = await stakeContract.getPoolDefByID(poolRewardBananaAndApple.id);
             let activeBefore = pool.active;
             await stakeContract.enableStakePool(poolRewardBananaAndApple.id);
-            pool = await stakeContract.getStakePoolByID(poolRewardBananaAndApple.id);
+            pool = await stakeContract.getPoolDefByID(poolRewardBananaAndApple.id);
             let activeAfter = pool.active;
             
             expect(activeBefore).to.be.false;
             expect(activeAfter).to.be.true;
 
-            pool = await stakeContract.getStakePoolByID(poolRewardApple.id);
+            pool = await stakeContract.getPoolDefByID(poolRewardApple.id);
             activeBefore = pool.active;
             await stakeContract.enableStakePool(poolRewardApple.id);
-            pool = await stakeContract.getStakePoolByID(poolRewardApple.id);
+            pool = await stakeContract.getPoolDefByID(poolRewardApple.id);
             activeAfter = pool.active;
             
             expect(activeBefore).to.be.false;
             expect(activeAfter).to.be.true;
 
-            pool = await stakeContract.getStakePoolByID(poolRewardBanana.id);
+            pool = await stakeContract.getPoolDefByID(poolRewardBanana.id);
             activeBefore = pool.active;
             await stakeContract.enableStakePool(poolRewardBanana.id);
-            pool = await stakeContract.getStakePoolByID(poolRewardBanana.id);
+            pool = await stakeContract.getPoolDefByID(poolRewardBanana.id);
             activeAfter = pool.active;
             
             expect(activeBefore).to.be.false;
             expect(activeAfter).to.be.true;
         });
         it('Should owner change pools disable', async()=>{
-            let pool = await stakeContract.getStakePoolByID(poolRewardBananaAndApple.id);
+            let pool = await stakeContract.getPoolDefByID(poolRewardBananaAndApple.id);
             let activeBefore = pool.active;
             await stakeContract.disableStakePool(poolRewardBananaAndApple.id);
-            pool = await stakeContract.getStakePoolByID(poolRewardBananaAndApple.id);
+            pool = await stakeContract.getPoolDefByID(poolRewardBananaAndApple.id);
             let activeAfter = pool.active;
             
             expect(activeBefore).to.be.true;
             expect(activeAfter).to.be.false;
 
-            pool = await stakeContract.getStakePoolByID(poolRewardApple.id);
+            pool = await stakeContract.getPoolDefByID(poolRewardApple.id);
             activeBefore = pool.active;
             await stakeContract.disableStakePool(poolRewardApple.id);
-            pool = await stakeContract.getStakePoolByID(poolRewardApple.id);
+            pool = await stakeContract.getPoolDefByID(poolRewardApple.id);
             activeAfter = pool.active;
             
             expect(activeBefore).to.be.true;
             expect(activeAfter).to.be.false;
 
-            pool = await stakeContract.getStakePoolByID(poolRewardBanana.id);
+            pool = await stakeContract.getPoolDefByID(poolRewardBanana.id);
             activeBefore = pool.active;
             await stakeContract.disableStakePool(poolRewardBanana.id);
-            pool = await stakeContract.getStakePoolByID(poolRewardBanana.id);
+            pool = await stakeContract.getPoolDefByID(poolRewardBanana.id);
             activeAfter = pool.active;
             
             expect(activeBefore).to.be.true;
@@ -262,28 +262,28 @@ describe('DynamicAssetStake', ()=>{
             expect(poolDisableAlways.active).to.eq(false);
         });
         it('Should active all pool again',async()=>{
-            let pool = await stakeContract.getStakePoolByID(poolRewardBananaAndApple.id);
+            let pool = await stakeContract.getPoolDefByID(poolRewardBananaAndApple.id);
             let activeBefore = pool.active;
             await stakeContract.enableStakePool(poolRewardBananaAndApple.id);
-            pool = await stakeContract.getStakePoolByID(poolRewardBananaAndApple.id);
+            pool = await stakeContract.getPoolDefByID(poolRewardBananaAndApple.id);
             let activeAfter = pool.active;
             
             expect(activeBefore).to.be.false;
             expect(activeAfter).to.be.true;
 
-            pool = await stakeContract.getStakePoolByID(poolRewardApple.id);
+            pool = await stakeContract.getPoolDefByID(poolRewardApple.id);
             activeBefore = pool.active;
             await stakeContract.enableStakePool(poolRewardApple.id);
-            pool = await stakeContract.getStakePoolByID(poolRewardApple.id);
+            pool = await stakeContract.getPoolDefByID(poolRewardApple.id);
             activeAfter = pool.active;
             
             expect(activeBefore).to.be.false;
             expect(activeAfter).to.be.true;
 
-            pool = await stakeContract.getStakePoolByID(poolRewardBanana.id);
+            pool = await stakeContract.getPoolDefByID(poolRewardBanana.id);
             activeBefore = pool.active;
             await stakeContract.enableStakePool(poolRewardBanana.id);
-            pool = await stakeContract.getStakePoolByID(poolRewardBanana.id);
+            pool = await stakeContract.getPoolDefByID(poolRewardBanana.id);
             activeAfter = pool.active;
             
             expect(activeBefore).to.be.false;
@@ -295,13 +295,13 @@ describe('DynamicAssetStake', ()=>{
         it('Should OWNER deposite reward tokens',async()=>{
             await rewardBanana.connect(owner).approve(stakeContract.address, rewardAmount);
             
-            const pool = await stakeContract.getStakePoolByID(poolRewardBanana.id)
-            let [rewardDef, rewardVariable] = await stakeContract.getPoolReward(pool.id, 0);
+            const pool = await stakeContract.getPoolDefByID(poolRewardBanana.id)
+            let [rewardDef, rewardVariable] = await stakeContract.getPoolRewardDef(pool.id, 0);
             const beforeRewardBalance = rewardVariable.balance
 
             await stakeContract.depositToRewardByPoolID(pool.id, 0, rewardAmount);
             
-            [rewardDef, rewardVariable] = await stakeContract.getPoolReward(pool.id, 0);
+            [rewardDef, rewardVariable] = await stakeContract.getPoolRewardDef(pool.id, 0);
             const afterRewardBalance = rewardVariable.balance;
             
             expect(beforeRewardBalance).to.not.eq(afterRewardBalance);
@@ -310,20 +310,20 @@ describe('DynamicAssetStake', ()=>{
         it('Should OWNER withdraw reward tokens',async()=>{
             const withdrawAmount = ethers.BigNumber.from("1000");
 
-            const pool = await stakeContract.getStakePoolByID(poolRewardBanana.id)
-            let [rewardDef, rewardVariable] = await stakeContract.getPoolReward(pool.id, 0);
+            const pool = await stakeContract.getPoolDefByID(poolRewardBanana.id)
+            let [rewardDef, rewardVariable] = await stakeContract.getPoolRewardDef(pool.id, 0);
             const beforeRewardBalance = rewardVariable.balance
 
             await stakeContract.withdrawRewardByPoolID(pool.id, 0, withdrawAmount);
             
-            [rewardDef, rewardVariable] = await stakeContract.getPoolReward(pool.id, 0);
+            [rewardDef, rewardVariable] = await stakeContract.getPoolRewardDef(pool.id, 0);
             const afterRewardBalance = rewardVariable.balance;
             
             expect(beforeRewardBalance).to.not.eq(afterRewardBalance);
             expect(afterRewardBalance).to.eq(beforeRewardBalance.sub(withdrawAmount));
         });
         it('Should OWNER deposite multi reward tokens',async()=>{
-            const pool = await stakeContract.getStakePoolByID(poolRewardBananaAndApple.id)
+            const pool = await stakeContract.getPoolDefByID(poolRewardBananaAndApple.id)
 
             await expect(stakeContract.depositToRewardByPoolID(pool.id, 0, rewardAmount))
                 .to.be
@@ -332,18 +332,18 @@ describe('DynamicAssetStake', ()=>{
             await rewardBanana.connect(owner).approve(stakeContract.address, rewardAmount);
             await rewardApple.connect(owner).approve(stakeContract.address, rewardAmount);
             
-            const poolRewardList = await stakeContract.getPoolRewardList(pool.id);
+            const poolRewardList = await stakeContract.getPoolRewardDefList(pool.id);
         
             for (let item of poolRewardList) {
                 
                 let rewardDef: any, rewardVariable: any; ;
                 
-                [rewardDef, rewardVariable] = await stakeContract.getPoolReward(pool.id, item.id);
+                [rewardDef, rewardVariable] = await stakeContract.getPoolRewardDef(pool.id, item.id);
                 const beforeRewardBalance = rewardVariable.balance
 
                 await stakeContract.depositToRewardByPoolID(pool.id, item.id, rewardAmount);
                 
-                [rewardDef, rewardVariable] = await stakeContract.getPoolReward(pool.id, item.id);
+                [rewardDef, rewardVariable] = await stakeContract.getPoolRewardDef(pool.id, item.id);
                 const afterRewardBalance = rewardVariable.balance;
 
                 expect(beforeRewardBalance).to.not.eq(afterRewardBalance, "Failed reward ID:" + item.id);
@@ -353,7 +353,7 @@ describe('DynamicAssetStake', ()=>{
         it('Should fail for disable pool',async()=>{
             const toStake = ethers.BigNumber.from("1000000000000000");
 
-            const pool = await stakeContract.getStakePoolByID(poolDisableAlways.id)
+            const pool = await stakeContract.getPoolDefByID(poolDisableAlways.id)
 
             await expect(stakeContract.stake(pool.id, toStake))
                 .to.be
@@ -362,7 +362,7 @@ describe('DynamicAssetStake', ()=>{
         it('Should user1 stake token multi reward',async()=>{
             const toStake = userAmount.mul(10).div(100);
             
-            const pool = await stakeContract.getStakePoolByID(poolRewardBananaAndApple.id)
+            const pool = await stakeContract.getPoolDefByID(poolRewardBananaAndApple.id)
 
             await expect(stakeContract.stake(pool.id, toStake))
                 .to.be
@@ -378,7 +378,7 @@ describe('DynamicAssetStake', ()=>{
         it('Should user2 stake token single reward',async()=>{
             const toStake = userAmount.mul(10).div(100);
             
-            const pool = await stakeContract.getStakePoolByID(poolRewardBanana.id)
+            const pool = await stakeContract.getPoolDefByID(poolRewardBanana.id)
 
             await expect(stakeContract.stake(pool.id, toStake))
                 .to.be
