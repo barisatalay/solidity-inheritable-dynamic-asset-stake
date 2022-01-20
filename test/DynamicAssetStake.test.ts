@@ -9,7 +9,7 @@ const rewardAmount = ethers.BigNumber.from("1000000000");
 const tokenNameStake = ethers.utils.formatBytes32String("StakeToken");
 const tokenNameApple = ethers.utils.formatBytes32String("AppleTokn");
 const tokenNameBanana = ethers.utils.formatBytes32String("BananaToken");
-const rewardPersecondStandart = ethers.BigNumber.from("47500000000000000");
+const rewardPersecondStandart = ethers.BigNumber.from("1"); //47500000000000000
 
 type RewardDef = {
     tokenAddress: string;
@@ -402,7 +402,7 @@ describe('DynamicAssetStake', ()=>{
             
             expect(pendinRewardAmount).to.be.an('array');
 
-            for (let item of pendinRewardAmount) {                
+            for (let item of pendinRewardAmount) {    
                 expect(Number(item.amount)).to.greaterThan(0,"Pending single reward calculation error")
             }            
             
@@ -414,19 +414,52 @@ describe('DynamicAssetStake', ()=>{
                 expect(Number(item.amount)).to.greaterThan(0,"Pending multi reward calculation error")
             }   
         });
+        
+        it('Should unstake balance from user single reward without TimeDiff',async()=>{
+            const beforeStakedBalance = await stakeContract.balanceOf(poolRewardBanana.id, user2.address);
+            
+            await stakeContract.connect(user2).unStake(poolRewardBanana.id, beforeStakedBalance);
 
-        it('Should unstake balance from user single reward',async()=>{
+            const afterStakedBalance = await stakeContract.balanceOf(poolRewardBanana.id, user2.address);
+            
+            expect(afterStakedBalance).to.eq(0);
+            
+        });
+        
+        it('Should stake and unstake balance from user single reward',async()=>{
+            let beforeStakedBalance = await stakeContract.balanceOf(poolRewardBanana.id, user2.address);
+            
+            expect(beforeStakedBalance).to.eq(0);
+
+            const toStake = 100;
+            const beforeUserStakeTokenBalance = await defaultStakeToken.balanceOf(user2.address);
+            const beforeBananaTokenBalance = await rewardBanana.balanceOf(user2.address);
+
+            await defaultStakeToken.connect(user2).approve(stakeContract.address, toStake);
+            await stakeContract.connect(user2).stake(poolRewardBanana.id, toStake);
+            
+            const afterUserStakeTokenBalance = await defaultStakeToken.balanceOf(user2.address);
+            
+            expect(afterUserStakeTokenBalance).to.eq(beforeUserStakeTokenBalance.sub(toStake));
+            let timeStr = await stakeContract.getTime()
+            
             // Fast-forward time
-            await time.increase(5000)
+            await time.increase(60 * 60)
+            timeStr = await stakeContract.getTime()
 
-            const defaultUserStake = userAmount.mul(10).div(100);
+            let userPendingReward = await stakeContract.showPendingReward(poolRewardBanana.id);
+            let pendingBananaRewardAmount;
+            for (let item of userPendingReward) {
+                pendingBananaRewardAmount = item.amount;
+            }
 
-            const userStakeBalance = await stakeContract.balanceOf(poolRewardBanana.id, user2.address);
-
-            expect(userStakeBalance).to.eq(defaultUserStake);
+            await stakeContract.connect(user2).unStake(poolRewardBanana.id, toStake);
             
-            const beforeUserBalance = await rewardBanana.balanceOf(user2.address);
-            
+            const afterUnStakeUserStakeTokenBalance = await defaultStakeToken.balanceOf(user2.address);
+            const afterUnStakeBananaTokenBalance = await rewardBanana.balanceOf(user2.address);
+
+            expect(pendingBananaRewardAmount).to.eq(afterUnStakeBananaTokenBalance.sub(beforeBananaTokenBalance));
+            expect(afterUnStakeUserStakeTokenBalance).to.eq(beforeUserStakeTokenBalance);
         });
     });
 });
