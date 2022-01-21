@@ -415,7 +415,7 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
     }
 
     /// @notice             The contract owner takes back the reward shared with the users here
-    /// @param  _stakeID    Id of the stake pool     
+    /// @param  _stakeID    Id of the stake pool
     /// @param  _rewardID   Id of the reward
     /// @param  _amount     Amount of deposit to reward
     function withdrawRewardByPoolID(uint _stakeID, uint _rewardID, uint256 _amount) public onlyOwner returns(bool){
@@ -426,6 +426,10 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
         return true;
     }
 
+    /// @notice                     ...
+    /// @param  _stakeID            Id of the stake pool
+    /// @param  _rewardID           Id of the reward
+    /// @param  _rewardPerSecond    New staking reward per second
     function updateRewardPerSecond(uint _stakeID, uint _rewardID, uint256 _rewardPerSecond) public onlyOwner returns(bool){
         RewardDef storage reward = poolRewardList[_stakeID][_rewardID];
         require(reward.rewardPerSecond != _rewardPerSecond, "Reward per Second no change! Because it is same.");
@@ -433,10 +437,15 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
         return true;
     }
 
+    /// @return     Returns number of reward to be distributed per second by pool id
     function getRewardPerSecond(uint _stakeID, uint _rewardID) public view returns(uint256){
         return poolRewardList[_stakeID][_rewardID].rewardPerSecond;
     }
 
+    /// @notice             ...
+    /// @param  _stakeID    Id of the stake pool
+    /// @param  _rewardID   Id of the reward
+    /// @param  _feeRate    New reward harvest fee
     function updateRewardFeeRate(uint _stakeID, uint _rewardID, uint8 _feeRate) public onlyOwner returns(bool){
         RewardDef storage reward = poolRewardList[_stakeID][_rewardID];
         require(reward.feeRate != _feeRate, "FeeRate no change! Because it is same.");
@@ -444,6 +453,9 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
         return true;
     }
 
+    /// @notice             ...
+    /// @param  _stakeID    Id of the stake pool
+    /// @param  _feeRate    New unStake fee
     function updateUnStakeFeeRate(uint _stakeID, uint8 _feeRate) public onlyOwner returns(bool){
         PoolVariable storage def = poolVariable[_stakeID];
         require(def.feeRate != _feeRate, "UnStake FeeRate no change! Because it is same.");
@@ -451,10 +463,12 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
         return true;
     }
 
+    /// @return     Returns commission rate for Unstake transaction
     function getUnStakeFeeRate(uint _stakeID)public view returns(uint8){
         return poolVariable[_stakeID].feeRate;
     }
 
+    /// @return     Returns blockchain time
     function getTime() public view returns(uint256){
         return block.timestamp; 
     }
