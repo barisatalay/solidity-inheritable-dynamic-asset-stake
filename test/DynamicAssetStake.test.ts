@@ -416,7 +416,7 @@ describe('DynamicAssetStake', ()=>{
                 .to.be
                 .revertedWith('Stake: Selected contract is not active');
         });
-        it('Should user1 stake token multi reward',async()=>{
+        it('Should user1 stake token get multi reward',async()=>{
             const toStake = userAmount.mul(10).div(100);
             
             const pool = await stakeContract.getPoolDefByID(poolRewardBananaAndApple.id)
@@ -432,7 +432,7 @@ describe('DynamicAssetStake', ()=>{
 
             expect(userStakeBalance).to.eq(toStake);    
         });
-        it('Should user2 stake token single reward',async()=>{
+        it('Should user2 stake token get single reward',async()=>{
             const toStake = userAmount.mul(10).div(100);
             
             const pool = await stakeContract.getPoolDefByID(poolRewardBanana.id)
@@ -534,12 +534,13 @@ describe('DynamicAssetStake', ()=>{
             const unStakeFee = await stakeContract.getUnStakeFeeRate(poolRewardBanana.id);
             const feeAmount = beforeUnStakedBalance.mul(unStakeFee).div(100);
 
+            /*
             console.log("beforeStakedBalance:               " + beforeStakedBalance);
             console.log("beforeUserStakeTokenBalance:       " + beforeUserStakeTokenBalance);
             console.log("afterUnStakeUserStakeTokenBalance: " + afterUnStakeUserStakeTokenBalance);
             console.log("unStakeFee: " + unStakeFee);
             console.log("feeAmount: " + feeAmount);
-            
+            */
             expect(pendingBananaRewardAmount).to.eq(afterUnStakeBananaTokenBalance.sub(beforeBananaTokenBalance));
             expect(afterUnStakeUserStakeTokenBalance).to.eq(beforeUserStakeTokenBalance.sub(feeAmount));
         });

@@ -19,7 +19,7 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
     event UnStake(address indexed from, uint256 amount);
     event YieldWithdraw(address indexed to);
     
-    struct PendingRewardResponse{               //
+    struct PendingRewardResponse{           // Model of showing pending awards
         bytes32 name;                       // Byte equivalent of the name of the pool token
         uint256 amount;                     // TODO...
         uint id;                            // Id of Reward
@@ -66,7 +66,6 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
     struct UserRewardInfo{
         uint256 rewardBalance;
-        uint rewardID;
     }
 
     uint private stakeIDCounter;
