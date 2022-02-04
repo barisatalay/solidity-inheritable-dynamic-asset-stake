@@ -4,6 +4,9 @@ Solidity Inheritable Dynamic Asset Stake
 
 Reward tokens to be distributed to the stakers must be deposited into the contract.
 
+![alt tag](media/solidity-inheritable-dynamic-asset-stake.png)
+
+
 # Installation steps
 - addNewStakePool via reward list
 
