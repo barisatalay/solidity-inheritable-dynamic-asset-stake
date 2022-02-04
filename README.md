@@ -1,9 +1,10 @@
 # solidity-inheritable-dynamic-asset-stake
 Solidity Inheritable Dynamic Asset Stake
 
-
 Reward tokens to be distributed to the stakers must be deposited into the contract.
 
+
+# Stake Pool Relationship
 ![alt tag](media/solidity-inheritable-dynamic-asset-stake.png)
 
 
